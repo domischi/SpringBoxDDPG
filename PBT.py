@@ -17,6 +17,7 @@ import datetime
 from ray import tune
 from ray.tune.schedulers import PopulationBasedTraining
 import json
+from pprint import pprint
 
 from OUnoise import OUActionNoise
 
@@ -71,100 +72,41 @@ class DDPG_Trainable(tune.Trainable):
 
 
         def get_actor(): # TODO make them a bit more flexible (and probably smaller)
-            # Initialize weights between -3e-3 and 3-e3
-            # last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
-            last_init = tf.keras.initializers.GlorotNormal(seed=None)
-            #
-            # inputs = layers.Input(shape=num_states)
-            # inputs1 = layers.Flatten()(inputs)
-            # out = layers.Dense(512, activation="relu")(inputs1)
-            # out = layers.BatchNormalization()(out)
-            # out = layers.Dense(512, activation="relu")(out)
-            # out = layers.BatchNormalization()(out)
-            # outputs = layers.Dense(num_actions[0]*num_actions[1], activation="tanh", kernel_initializer=last_init)(out)
-            # outputs = layers.Reshape((num_actions[0],num_actions[1]))(outputs)
-            #
             inputs = layers.Input(shape=self.num_states)
-            # inputs1 = layers.Reshape((grid_size*10,grid_size*10,3))(inputs)
-            # out = layers.BatchNormalization()(inputs)
-            out = layers.Conv2D(
-                64,
-                3,
-                strides=1,
-                #activation="relu",
-                #kernel_initializer=last_init,
-                data_format="channels_first",
-            )(inputs)
+            out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(inputs)
             out = layers.BatchNormalization()(out)
-            out = layers.Conv2D(
-                128, 4, strides=1, activation="relu", kernel_initializer=last_init
-            )(out)
+            out = layers.Conv2D( 128, 3, activation='relu', padding='same', data_format="channels_first")(out)
             out = layers.BatchNormalization()(out)
-            outputs = layers.Conv2D(
-                256, 5, strides=1, activation="relu", kernel_initializer=last_init
-            )(out)
-            out = layers.Flatten()(out)
+            out = layers.Conv2D( 16, 3, activation='relu', padding='same', data_format="channels_first")(out)
             out = layers.BatchNormalization()(out)
-            outputs = layers.Dense(
-                self.num_actions[0] * self.num_actions[1], activation="relu", kernel_initializer=last_init
-            )(out)
-            outputs = layers.Reshape((self.num_actions[0], self.num_actions[1]))(outputs)
+            out = layers.Conv2D( 1, 3, activation='sigmoid', padding='same', data_format="channels_first")(out)
             # Our upper bound is 2.0 for Pendulum.
-            outputs = outputs * self.upper_bound
-            model = tf.keras.Model(inputs, outputs)
+            out = out * self.upper_bound
+            model = tf.keras.Model(inputs, out)
             return model
 
 
-        def get_critic():
+        def get_critic(): ## TODO Treat state_input and action_input the same by concatenating them along the first dimension
+            # tf.keras.layers.Concatenate(axis=1)([state_input, action_input])
             # State as input
             state_input = layers.Input(shape=self.num_states)
-            state_input1 = layers.Flatten()(state_input)
-            state_out = layers.Dense(128, activation="relu")(state_input1)
+            state_out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(state_input)
             state_out = layers.BatchNormalization()(state_out)
-            state_out = layers.Dense(32, activation="relu")(state_out)
-            state_out = layers.BatchNormalization()(state_out)
+            state_out = layers.Flatten()(state_out)
 
-            #
-            # state_input = layers.Input(shape = num_states)
-            # #out = layers.Reshape((grid_size*10,grid_size*10,1))(state_input)
-            # out = layers.Conv2D(64, 3 ,strides = 2, activation="relu")(state_input)
-            # out = layers.BatchNormalization()(out)
-            # out = layers.Conv2D(128, 3 ,strides = 2, activation="relu")(out)
-            # out = layers.BatchNormalization()(out)
-            # out = layers.Flatten()(out)
-            # out = layers.Dense(32, activation="relu")(out)
-            # state_out = layers.BatchNormalization()(out)
-            #
             # # Action as input
-            action_input = layers.Input(shape=self.num_actions)
-            action_input1 = layers.Flatten()(action_input)
-            out = layers.Dense(128, activation="relu")(action_input1)
-            out = layers.BatchNormalization()(out)
-            action_out = layers.Dense(32, activation="relu")(out)
+            action_input = layers.Input(shape=(1,*self.num_actions)) ## [BATCH_SIZE (None), Channels (1), grid_size_x, grid_size_y] where BATCH_SIZE is inferred at runtime
+            action_out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(action_input)
             action_out = layers.BatchNormalization()(action_out)
-
-            #
-            # action_input = layers.Input(shape = num_actions)
-            # out = layers.Reshape((grid_size,grid_size,1))(action_input)
-            # out = layers.Conv2D(64, 3 ,strides = 2, activation="relu")(out)
-            # out = layers.BatchNormalization()(out)
-            # out = layers.Conv2D(128, 3 ,strides = 2, activation="relu")(out)
-            # out = layers.BatchNormalization()(out)
-            # out = layers.Flatten()(out)
-            # out = layers.Dense(32, activation="relu")(out)
-            # action_out = layers.BatchNormalization()(out)
+            action_out = layers.Flatten()(action_out)
 
             # Both are passed through seperate layer before concatenating
-            concat = layers.Concatenate()([state_out, action_out])
-
-            out = layers.Dense(512, activation="relu")(concat)
-            out = layers.BatchNormalization()(out)
-            out = layers.Dense(512, activation="relu")(out)
-            out = layers.BatchNormalization()(out)
-            outputs = layers.Dense(1)(out)
+            out = layers.Concatenate()([state_out, action_out])
+            out = layers.Dense(512, activation='relu')(out)
+            out = layers.Dense(1, activation=None)(out) ## Linear layer
 
             # Outputs single value for give state-action
-            model = tf.keras.Model([state_input, action_input], outputs)
+            model = tf.keras.Model([state_input, action_input], out)
 
             return model
 
@@ -243,9 +185,9 @@ class DDPG_Trainable(tune.Trainable):
 
     def policy(self, state):
         sampled_actions = self.actor(state)
-        sampled_actions = tf.squeeze(sampled_actions)
+        sampled_actions = tf.squeeze(sampled_actions).numpy()
         noise = self.noise()
-        sampled_actions = sampled_actions.numpy() + noise
+        sampled_actions = sampled_actions + noise
 
         # We make sure action is within bounds
         legal_action = np.clip(sampled_actions, self.lower_bound, self.upper_bound)
@@ -272,6 +214,7 @@ class DDPG_Trainable(tune.Trainable):
         # Convert to tensors
         state_batch      = tf.convert_to_tensor(self.state_buffer[batch_indices])
         action_batch     = tf.convert_to_tensor(self.action_buffer[batch_indices])
+        action_batch     = tf.expand_dims(action_batch, axis=1)
         reward_batch     = tf.convert_to_tensor(self.reward_buffer[batch_indices])
         reward_batch     = tf.cast(reward_batch, dtype= tf.float32)
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
