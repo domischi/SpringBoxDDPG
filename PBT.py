@@ -31,8 +31,10 @@ class DDPG_Trainable(tune.Trainable):
         self.N = config['total_episodes']
         self.std_dev = config['noise_std_dev']
 
+        self.THRESH = config['THRESH']
+
         # Environment variables
-        self.env = SpringBoxEnv(grid_size=self.config['grid_size'], THRESH=self.config['THRESH'])
+        self.env = SpringBoxEnv(grid_size=self.config['grid_size'], THRESH=self.THRESH)
         obs = self.env.reset()
         self.num_states = self.env.observation_space.shape
         self.num_actions = self.env.action_space.shape
@@ -256,6 +258,7 @@ class DDPG_Trainable(tune.Trainable):
                 'actor_lr': self.actor_lr,
                 'critic_lr': self.critic_lr,
                 'n':self.n,
+                'THRESH': self.THRESH, 
                 }
         with open(f'{checkpoint_dir}/other_data.json', 'w') as f:
             json.dump(save_dict, f)
@@ -274,6 +277,7 @@ class DDPG_Trainable(tune.Trainable):
         self.n = save_dict['n']
         self.actor_lr = save_dict['actor_lr']
         self.critic_lr = save_dict['critic_lr']
+        self.THRESH = save_dict['THRESH']
         self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, clipnorm=1.0)
         self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, clipnorm=1.0)
         # Compile to make them saveable
