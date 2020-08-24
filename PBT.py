@@ -310,6 +310,8 @@ class DDPG_Trainable(tune.Trainable):
         save_dict = {
                 'config':self.config,
                 'ep_reward_list':self.ep_reward_list,
+                'actor_lr': self.actor_lr,
+                'critic_lr': self.critic_lr,
                 'n':self.n,
                 }
         with open(f'{checkpoint_dir}/other_data.json', 'w') as f:
@@ -327,6 +329,15 @@ class DDPG_Trainable(tune.Trainable):
         self.config = save_dict['config']
         self.ep_reward_list = save_dict['ep_reward_list']
         self.n = save_dict['n']
+        self.actor_lr = save_dict['actor_lr']
+        self.critic_lr = save_dict['critic_lr']
+        self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, clipnorm=1.0)
+        self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, clipnorm=1.0)
+        # Compile to make them saveable
+        self.actor.compile(self.actor_optimizer)
+        self.critic.compile(self.critic_optimizer)
+        self.target_actor.compile(self.actor_optimizer)
+        self.target_critic.compile(self.critic_optimizer)
 
 
 if __name__ == "__main__":
@@ -356,14 +367,14 @@ if __name__ == "__main__":
                      total_episodes = epochs_per_generation,
                      n_epochs = epochs_per_generation,
                      grid_size = 16,
-                     THRESH = tune.uniform(.01,.99),
+                     THRESH = tune.sample_from(lambda _: tune.uniform(.01,.99)),
                      noise_std_dev = .2,
                      #hidden_unit_0 = tune.choice([8, 16, 32, 64, 128]),
                      buffer_capacity = 50000,
                      batch_size=32,
                      num_generations = num_generations,
-                     actor_lr = tune.loguniform(1e-5,1e-1),
-                     critic_lr = tune.loguniform(1e-5,1e-1),
+                     actor_lr = tune.sample_from(lambda _: tune.loguniform(1e-5,1e-1)),
+                     critic_lr = tune.sample_from(lambda _: tune.loguniform(1e-5,1e-1)),
                  ),
              scheduler = schedule,
              stop = {'training_iteration': num_generations*epochs_per_generation},
