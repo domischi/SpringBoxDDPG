@@ -331,23 +331,30 @@ if __name__ == "__main__":
             hyperparam_mutations=hyperparam_mutations)
 
     ## If this code throws an error bytes has no readonly flag, comment out a line in cloudpickle_fast (see this discussion: https://github.com/ray-project/ray/issues/8262)
-    tune.run(DDPG_Trainable,
-             verbose=1,
-             local_dir=BASE_DIR,
-             config = dict(
-                     total_episodes = epochs_per_generation,
-                     n_epochs = epochs_per_generation,
-                     grid_size = 16,
-                     THRESH = tune.sample_from(lambda _: random.choice(hyperparam_mutations['THRESH'])),
-                     noise_std_dev = .2,
-                     buffer_capacity = 50000,
-                     batch_size=32,
-                     num_generations = num_generations,
-                     actor_lr =  tune.sample_from(lambda _: random.choice(hyperparam_mutations['actor_lr'])),
-                     critic_lr = tune.sample_from(lambda _: random.choice(hyperparam_mutations['critic_lr'])),
-                 ),
-             scheduler = schedule,
-             stop = {'training_iteration': num_generations*epochs_per_generation},
-             resources_per_trial={'gpu': 1, 'cpu': 1},
-             num_samples=population_size,
-            )
+    for resume in [True, False]:
+        try: 
+            tune.run(DDPG_Trainable,
+                     verbose=1,
+                     local_dir=BASE_DIR,
+                     config = dict(
+                             total_episodes = epochs_per_generation,
+                             n_epochs = epochs_per_generation,
+                             grid_size = 16,
+                             THRESH = tune.sample_from(lambda _: random.choice(hyperparam_mutations['THRESH'])),
+                             noise_std_dev = .2,
+                             buffer_capacity = 50000,
+                             batch_size=32,
+                             num_generations = num_generations,
+                             actor_lr =  tune.sample_from(lambda _: random.choice(hyperparam_mutations['actor_lr'])),
+                             critic_lr = tune.sample_from(lambda _: random.choice(hyperparam_mutations['critic_lr'])),
+                         ),
+                     scheduler = schedule,
+                     stop = {'training_iteration': num_generations*epochs_per_generation},
+                     resources_per_trial={'gpu': 1, 'cpu': 1},
+                     num_samples=population_size,
+                     resume=resume,
+                     global_checkpoint_period=60,
+                    )
+            break
+        except ValueError:
+            print('No checkpoint data found! Starting a new one!')
