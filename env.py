@@ -10,7 +10,7 @@ from copy import deepcopy
 from tqdm import tqdm as std_tqdm
 
 tqdm = partial(std_tqdm, ncols=100)
-import time
+import uuid
 import os
 import numba
 from numba.core.errors import NumbaWarning
@@ -129,8 +129,8 @@ class SpringBoxEnv(gym.Env):
         self._config = cfg()
 
         run_id = self._config["run_id"]
-        timestamp = int(time.time())
-        data_dir = f"/tmp/boxspring-{run_id}-{timestamp}"
+        unique_id = str(uuid.uuid4())
+        data_dir = f"/tmp/boxspring-{run_id}-{unique_id}"
         os.makedirs(data_dir)
         self.sim_info = {"data_dir": data_dir}
         self.sim_info = get_sim_info(self.sim_info, self._config, 0)
