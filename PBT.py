@@ -89,7 +89,30 @@ class DDPG_Trainable(tune.Trainable):
             return model
 
 
-        def get_critic(): ## TODO Treat state_input and action_input the same by concatenating them along the first dimension
+        def get_critic(): # TODO Same as actor
+            # Inputs
+            state_input = layers.Input(shape=self.num_states)
+            action_input = layers.Input(shape=(1,*self.num_actions)) ## [BATCH_SIZE (None), Channels (1), grid_size_x, grid_size_y] where BATCH_SIZE is inferred at runtime
+
+            # Concatenate
+            out = tf.keras.layers.Concatenate(axis=1)([state_input, action_input])
+
+            # Apply convolutions
+            out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(out)
+            out = layers.BatchNormalization()(out)
+            out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(out)
+            out = layers.BatchNormalization()(out)
+
+            out = layers.Flatten()(out)
+
+            out = layers.Dense(512, activation='relu')(out)
+            out = layers.Dense(1, activation=None)(out) ## Linear layer
+
+            # Outputs single value for give state-action
+            model = tf.keras.Model([state_input, action_input], out)
+
+            return model
+        def get_critic_old(): ## TODO Treat state_input and action_input the same by concatenating them along the first dimension
             # tf.keras.layers.Concatenate(axis=1)([state_input, action_input])
             # State as input
             state_input = layers.Input(shape=self.num_states)
