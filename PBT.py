@@ -74,22 +74,17 @@ class DDPG_Trainable(tune.Trainable):
         self.next_state_buffer = np.zeros((self.buffer_capacity, *self.num_states ))
 
 
-        def get_actor(): # TODO make them a bit more flexible (and probably smaller)
+        def get_actor(config):
             inputs = layers.Input(shape=self.num_states)
-            out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(inputs)
-            out = layers.BatchNormalization()(out)
-            out = layers.Conv2D( 128, 3, activation='relu', padding='same', data_format="channels_first")(out)
-            out = layers.BatchNormalization()(out)
-            out = layers.Conv2D( 16, 3, activation='relu', padding='same', data_format="channels_first")(out)
-            out = layers.BatchNormalization()(out)
-            out = layers.Conv2D( 1, 3, activation='sigmoid', padding='same', data_format="channels_first")(out)
-            # Our upper bound is 2.0 for Pendulum.
-            out = out * self.upper_bound
+            for i in range(config['actor_n_layers']):
+                out = layers.Conv2D( config[f'actor_channels_{i}'], config[f'actor_kernel_{i}'], activation='relu', padding='same', data_format="channels_first")(inputs)
+                out = layers.BatchNormalization()(out)
+            out = layers.Conv2D( 1, config[f'actor_kernel_final'], activation='sigmoid', padding='same', data_format="channels_first")(out)
             model = tf.keras.Model(inputs, out)
             return model
 
 
-        def get_critic(): # TODO Same as actor
+        def get_critic(config):
             # Inputs
             state_input = layers.Input(shape=self.num_states)
             action_input = layers.Input(shape=(1,*self.num_actions)) ## [BATCH_SIZE (None), Channels (1), grid_size_x, grid_size_y] where BATCH_SIZE is inferred at runtime
@@ -98,52 +93,28 @@ class DDPG_Trainable(tune.Trainable):
             out = tf.keras.layers.Concatenate(axis=1)([state_input, action_input])
 
             # Apply convolutions
-            out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(out)
-            out = layers.BatchNormalization()(out)
-            out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(out)
-            out = layers.BatchNormalization()(out)
+            for i in range(config['critic_n_conv_layers']):
+                out = layers.Conv2D( config[f'critic_channels_{i}'], config[f'critic_kernel_{i}'], activation='relu', padding='same', data_format="channels_first")(out)
+                out = layers.BatchNormalization()(out)
 
+            # Flatten
             out = layers.Flatten()(out)
 
-            out = layers.Dense(512, activation='relu')(out)
+            # Apply dense layers
+            for i in range(config['critic_n_dense_layers']):
+                out = layers.Dense(config[f'critic_dense_{i}'], activation='relu')(out)
             out = layers.Dense(1, activation=None)(out) ## Linear layer
 
             # Outputs single value for give state-action
             model = tf.keras.Model([state_input, action_input], out)
 
             return model
-        def get_critic_old(): ## TODO Treat state_input and action_input the same by concatenating them along the first dimension
-            # tf.keras.layers.Concatenate(axis=1)([state_input, action_input])
-            # State as input
-            state_input = layers.Input(shape=self.num_states)
-            state_out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(state_input)
-            state_out = layers.BatchNormalization()(state_out)
-            state_out = layers.Flatten()(state_out)
-
-            # # Action as input
-            action_input = layers.Input(shape=(1,*self.num_actions)) ## [BATCH_SIZE (None), Channels (1), grid_size_x, grid_size_y] where BATCH_SIZE is inferred at runtime
-            action_out = layers.Conv2D( 64, 3, activation='relu', padding='same', data_format="channels_first")(action_input)
-            action_out = layers.BatchNormalization()(action_out)
-            action_out = layers.Flatten()(action_out)
-
-            # Both are passed through seperate layer before concatenating
-            out = layers.Concatenate()([state_out, action_out])
-            out = layers.Dense(512, activation='relu')(out)
-            out = layers.Dense(1, activation=None)(out) ## Linear layer
-
-            # Outputs single value for give state-action
-            model = tf.keras.Model([state_input, action_input], out)
-
-            return model
-
-
 
         ## Initialize models
-        #self.learning_buffer = LearningBuffer(self.gamma)
-        self.actor = get_actor()
-        self.critic = get_critic()
-        self.target_actor = get_actor()
-        self.target_critic = get_critic()
+        self.actor = get_actor(self.config)
+        self.critic = get_critic(self.config)
+        self.target_actor = get_actor(self.config)
+        self.target_critic = get_critic(self.config)
         # Making the weights equal initially
         self.target_actor.set_weights(self.actor.get_weights())
         self.target_critic.set_weights(self.critic.get_weights())
@@ -288,10 +259,11 @@ class DDPG_Trainable(tune.Trainable):
         return checkpoint_dir
 
     def load_checkpoint(self, checkpoint_dir):
-        self.actor = tf.keras.models.load_model(f'{checkpoint_dir}/actor.model')
-        self.critic = tf.keras.models.load_model(f'{checkpoint_dir}/critic.model')
-        self.target_actor = tf.keras.models.load_model(f'{checkpoint_dir}/target_actor.model')
-        self.target_critic = tf.keras.models.load_model(f'{checkpoint_dir}/target_critic.model')
+        ## in most situations the networks will change... Let's first find a proper network architecture, fix these values, then do PopBased training for the successful architecture
+        #self.actor = tf.keras.models.load_model(f'{checkpoint_dir}/actor.model')
+        #self.critic = tf.keras.models.load_model(f'{checkpoint_dir}/critic.model')
+        #self.target_actor = tf.keras.models.load_model(f'{checkpoint_dir}/target_actor.model')
+        #self.target_critic = tf.keras.models.load_model(f'{checkpoint_dir}/target_critic.model')
         with open(f'{checkpoint_dir}/other_data.json', 'r') as f:
             save_dict = json.load(f)
         self.config = save_dict['config']
@@ -322,6 +294,27 @@ if __name__ == "__main__":
     hyperparam_mutations["actor_lr"] = np.geomspace(1e-5, 1e-1, 9).tolist()
     hyperparam_mutations["critic_lr"] = np.geomspace(1e-5, 1e-1, 9).tolist()
     hyperparam_mutations["THRESH"] = np.linspace(.01,.99, 15).tolist()
+    hyperparam_mutations["noise_std_dev"] = np.linspace(.01, .91, 4).tolist()
+
+    hyperparam_mutations["actor_n_layers"        ] = [1,2,3              ]
+    hyperparam_mutations["actor_channels_0"      ] = [8,16,32,64,128     ]
+    hyperparam_mutations["actor_channels_1"      ] = [8,16,32,64,128     ]
+    hyperparam_mutations["actor_channels_2"      ] = [8,16,32,64,128     ]
+    hyperparam_mutations["actor_kernel_0"        ] = [2,3,4              ]
+    hyperparam_mutations["actor_kernel_1"        ] = [2,3,4              ]
+    hyperparam_mutations["actor_kernel_2"        ] = [2,3,4              ]
+    hyperparam_mutations["actor_kernel_final"    ] = [2,3,4              ]
+    hyperparam_mutations["critic_n_conv_layers"  ] = [1,2,3              ]
+    hyperparam_mutations["critic_channels_0"     ] = [8,16,32,64,128     ]
+    hyperparam_mutations["critic_channels_1"     ] = [8,16,32,64,128     ]
+    hyperparam_mutations["critic_channels_2"     ] = [8,16,32,64,128     ]
+    hyperparam_mutations["critic_kernel_0"       ] = [2,3,4              ]
+    hyperparam_mutations["critic_kernel_1"       ] = [2,3,4              ]
+    hyperparam_mutations["critic_kernel_2"       ] = [2,3,4              ]
+    hyperparam_mutations["critic_n_dense_layers" ] = [1,2,3              ]
+    hyperparam_mutations["critic_dense_0"        ] = [8,16,32,64,128,256 ]
+    hyperparam_mutations["critic_dense_1"        ] = [8,16,32,64,128,256 ]
+    hyperparam_mutations["critic_dense_2"        ] = [8,16,32,64,128,256 ]
 
     schedule = PopulationBasedTraining(
             time_attr='epoch',
@@ -341,7 +334,26 @@ if __name__ == "__main__":
                              n_epochs = epochs_per_generation,
                              grid_size = 16,
                              THRESH = tune.sample_from(lambda _: random.choice(hyperparam_mutations['THRESH'])),
-                             noise_std_dev = .2,
+                             noise_std_dev = tune.sample_from(lambda _: random.choice(hyperparam_mutations['noise_std_dev'])),
+                             actor_n_layers       = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_n_layers"        ])),
+                             actor_channels_0     = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_channels_0"      ])),
+                             actor_channels_1     = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_channels_1"      ])),
+                             actor_channels_2     = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_channels_2"      ])),
+                             actor_kernel_0       = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_kernel_0"        ])),
+                             actor_kernel_1       = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_kernel_1"        ])),
+                             actor_kernel_2       = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_kernel_2"        ])),
+                             actor_kernel_final   = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_kernel_final"    ])),
+                             critic_n_conv_layers = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_n_conv_layers"  ])),
+                             critic_channels_0    = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_channels_0"     ])),
+                             critic_channels_1    = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_channels_1"     ])),
+                             critic_channels_2    = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_channels_2"     ])),
+                             critic_kernel_0      = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_kernel_0"       ])),
+                             critic_kernel_1      = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_kernel_1"       ])),
+                             critic_kernel_2      = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_kernel_2"       ])),
+                             critic_n_dense_layers= tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_n_dense_layers" ])),
+                             critic_dense_0       = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_dense_0"        ])),
+                             critic_dense_1       = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_dense_1"        ])),
+                             critic_dense_2       = tune.sample_from(lambda _: random.choice(hyperparam_mutations["critic_dense_2"        ])),
                              buffer_capacity = 50000,
                              batch_size=32,
                              num_generations = num_generations,
@@ -354,6 +366,7 @@ if __name__ == "__main__":
                      num_samples=population_size,
                      resume=resume,
                      global_checkpoint_period=60,
+                     #fail_fast=True,
                     )
             break
         except ValueError:
