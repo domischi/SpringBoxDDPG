@@ -2,18 +2,20 @@
 
 ## Get rid of some very verbose logging of TF
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import gym
 import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 from env import SpringBoxEnv
 import sys
 from tqdm import tqdm
 from scipy.stats import sem
 import datetime
+import ray
 from ray import tune
 from ray.tune.schedulers import PopulationBasedTraining
 import json
@@ -25,7 +27,7 @@ BASE_DIR = './raytune'
 
 class DDPG_Trainable(tune.Trainable):
     def setup(self, config):
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
         import tensorflow as tf
         self.config = config
         self.N = config['total_episodes']
@@ -35,12 +37,11 @@ class DDPG_Trainable(tune.Trainable):
 
         # Environment variables
         self.env = SpringBoxEnv(grid_size=self.config['grid_size'], THRESH=self.THRESH)
-        obs = self.env.reset()
+        self.env.reset()
         self.num_states = self.env.observation_space.shape
         self.num_actions = self.env.action_space.shape
         self.upper_bound = self.env.action_space.high[0][0]
         self.lower_bound = self.env.action_space.low[0][0]
-
 
         ## To store reward history of each episode
         self.ep_reward_list = []
@@ -247,7 +248,6 @@ class DDPG_Trainable(tune.Trainable):
         )
 
     def save_checkpoint(self, checkpoint_dir):
-        print('save',checkpoint_dir)
         self.actor.save(f'{checkpoint_dir}/actor.model')
         self.critic.save(f'{checkpoint_dir}/critic.model')
         self.target_actor.save(f'{checkpoint_dir}/target_actor.model')
@@ -278,6 +278,8 @@ class DDPG_Trainable(tune.Trainable):
         self.actor_lr = save_dict['actor_lr']
         self.critic_lr = save_dict['critic_lr']
         self.THRESH = save_dict['THRESH']
+        self.env = SpringBoxEnv(grid_size=self.config['grid_size'], THRESH=self.THRESH) # Required since self.THRESH is possibly not initialized
+        self.env.reset()
         self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, clipnorm=1.0)
         self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, clipnorm=1.0)
         # Compile to make them saveable
@@ -289,7 +291,7 @@ class DDPG_Trainable(tune.Trainable):
 
 if __name__ == "__main__":
     # Hyper-Hyper parameters
-    epochs_per_generation = 25
+    epochs_per_generation = 10
     population_size = 10
     num_generations = 4
 
@@ -308,7 +310,7 @@ if __name__ == "__main__":
 
     ## If this code throws an error bytes has no readonly flag, comment out a line in cloudpickle_fast (see this discussion: https://github.com/ray-project/ray/issues/8262)
     tune.run(DDPG_Trainable,
-             verbose=0,
+             verbose=1,
              local_dir=BASE_DIR,
              config = dict(
                      total_episodes = epochs_per_generation,
