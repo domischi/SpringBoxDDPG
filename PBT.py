@@ -269,7 +269,6 @@ class DDPG_Trainable(tune.Trainable):
         self.critic = tf.keras.models.load_model(f'{checkpoint_dir}/critic.model')
         self.target_actor = tf.keras.models.load_model(f'{checkpoint_dir}/target_actor.model')
         self.target_critic = tf.keras.models.load_model(f'{checkpoint_dir}/target_critic.model')
-        self.env.reset()
         with open(f'{checkpoint_dir}/other_data.json', 'r') as f:
             save_dict = json.load(f)
         self.config = save_dict['config']
@@ -288,18 +287,18 @@ class DDPG_Trainable(tune.Trainable):
         self.target_actor.compile(self.actor_optimizer)
         self.target_critic.compile(self.critic_optimizer)
 
-
 if __name__ == "__main__":
+    ray.init(num_cpus=1, num_gpus=1)
+
     # Hyper-Hyper parameters
     epochs_per_generation = 10
     population_size = 10
     num_generations = 4
 
     hyperparam_mutations = dict()
-    hyperparam_mutations["actor_lr"] = lambda : tune.loguniform(1e-5,1e-1)
-    hyperparam_mutations["critic_lr"] = lambda : tune.loguniform(1e-5,1e-1)
-    hyperparam_mutations["THRESH"] = lambda : tune.uniform(.01, .99)
-    #hyperparam_mutations["copy_step"] = [10, 25, 50, 100]
+    hyperparam_mutations["actor_lr"] = np.geomspace(1e-5, 1e-1, 9).tolist()
+    hyperparam_mutations["critic_lr"] = np.geomspace(1e-5, 1e-1, 9).tolist()
+    hyperparam_mutations["THRESH"] = np.linspace(.01,.99, 15).tolist()
 
     schedule = PopulationBasedTraining(
             time_attr='epoch',
@@ -316,14 +315,13 @@ if __name__ == "__main__":
                      total_episodes = epochs_per_generation,
                      n_epochs = epochs_per_generation,
                      grid_size = 16,
-                     THRESH = tune.sample_from(lambda _: tune.uniform(.01,.99)),
+                     THRESH = tune.sample_from(lambda _: random.choice(hyperparam_mutations['THRESH'])),
                      noise_std_dev = .2,
-                     #hidden_unit_0 = tune.choice([8, 16, 32, 64, 128]),
                      buffer_capacity = 50000,
                      batch_size=32,
                      num_generations = num_generations,
-                     actor_lr = tune.sample_from(lambda _: tune.loguniform(1e-5,1e-1)),
-                     critic_lr = tune.sample_from(lambda _: tune.loguniform(1e-5,1e-1)),
+                     actor_lr =  tune.sample_from(lambda _: random.choice(hyperparam_mutations['actor_lr'])),
+                     critic_lr = tune.sample_from(lambda _: random.choice(hyperparam_mutations['critic_lr'])),
                  ),
              scheduler = schedule,
              stop = {'training_iteration': num_generations*epochs_per_generation},
