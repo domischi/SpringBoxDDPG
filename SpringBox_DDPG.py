@@ -1,3 +1,4 @@
+
 # Based on https://keras.io/examples/rl/ddpg_pendulum/
 
 import gym
@@ -10,28 +11,28 @@ import sys
 from tqdm import tqdm
 from scipy.stats import sem
 
-
 grid_size = 10
-THRESH = 0.75
+
+THRESH = 0.5
 
 env = SpringBoxEnv(grid_size=grid_size, THRESH=THRESH)
 
 num_states = env.observation_space.shape
+
 print("Size of State Space ->  {}".format(num_states))
-num_actions = env.action_space.shape
+num_actions = env.action_space.shape[0]
 print("Size of Action Space ->  {}".format(num_actions))
+
 
 upper_bound = env.action_space.high[0][0]
 lower_bound = env.action_space.low[0][0]
 
+
 print("Max Value of Action ->  {}".format(upper_bound))
 print("Min Value of Action ->  {}".format(lower_bound))
 
-"""
-To implement better exploration by the Actor network, we use noisy perturbations, specifically
-an **Ornstein-Uhlenbeck process** for generating noise, as described in the paper.
-It samples noise from a correlated normal distribution.
-"""
+
+
 class OUActionNoise:
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
         self.theta = theta
@@ -42,6 +43,7 @@ class OUActionNoise:
         self.reset()
 
     def __call__(self):
+        # Formula taken from https://www.wikipedia.org/wiki/Ornstein-Uhlenbeck_process.
         x = (
             self.x_prev
             + self.theta * (self.mean - self.x_prev) * self.dt
@@ -58,6 +60,7 @@ class OUActionNoise:
         else:
             self.x_prev = np.zeros_like(self.mean)
 
+
 class Buffer:
     def __init__(self, buffer_capacity=100000, batch_size=64):
         self.buffer_capacity = buffer_capacity
@@ -68,6 +71,7 @@ class Buffer:
 
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
+
         self.state_buffer      = np.zeros((self.buffer_capacity, *num_states ))
         self.action_buffer     = np.zeros((self.buffer_capacity, *num_actions))
         self.reward_buffer     = np.zeros((self.buffer_capacity, 1           ))
@@ -113,6 +117,7 @@ class Buffer:
 
         with tf.GradientTape() as tape:  # actor_model.summary(line_length=None, positions=None, print_fn=None)
             # critic_model.summary(line_length=None, positions=None, print_fn=None)
+
             actions = actor_model(state_batch)
             critic_value = critic_model([state_batch, actions])
             # Used `-value` as we want to maximize the value given
@@ -157,12 +162,12 @@ as we use the `tanh` activation.
 
 def get_actor():
     # Initialize weights between -3e-3 and 3-e3
+
     # last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
     last_init = tf.keras.initializers.GlorotNormal(seed=None)
     #
-    # inputs = layers.Input(shape=num_states)
-    # inputs1 = layers.Flatten()(inputs)
-    # out = layers.Dense(512, activation="relu")(inputs1)
+    # inputs = layers.Input(shape=(num_states,))
+    # out = layers.Dense(512, activation="relu")(inputs)
     # out = layers.BatchNormalization()(out)
     # out = layers.Dense(512, activation="relu")(out)
     # out = layers.BatchNormalization()(out)
@@ -202,9 +207,18 @@ def get_actor():
 
 def get_critic():
     # State as input
-    state_input = layers.Input(shape=num_states)
-    state_input1 = layers.Flatten()(state_input)
-    state_out = layers.Dense(128, activation="relu")(state_input1)
+    # state_input = layers.Input(shape=(num_states))
+    # state_out = layers.Dense(16, activation="relu")(state_input)
+    # state_out = layers.BatchNormalization()(state_out)
+    # state_out = layers.Dense(32, activation="relu")(state_out)
+    # state_out = layers.BatchNormalization()(state_out)
+    state_input = layers.Input(shape=(num_states))
+    state_out = layers.Reshape((grid_size*10,grid_size*10,1))(state_input)
+    state_out = layers.Conv2D(128, 5, strides = 2, activation = "relu")(state_out)
+    state_out = layers.Flatten()(state_out)
+    state_out = layers.BatchNormalization()(state_out)
+
+    state_out = layers.Dense(128, activation="relu")(state_input)
     state_out = layers.BatchNormalization()(state_out)
     state_out = layers.Dense(32, activation="relu")(state_out)
     state_out = layers.BatchNormalization()(state_out)
@@ -239,6 +253,7 @@ def get_critic():
     # out = layers.Dense(32, activation="relu")(out)
     # action_out = layers.BatchNormalization()(out)
 
+
     # Both are passed through seperate layer before concatenating
     concat = layers.Concatenate()([state_out, action_out])
 
@@ -263,6 +278,7 @@ exploration.
 def policy(state, noise_object):
     sampled_actions = actor_model(state)
     sampled_actions = tf.squeeze(sampled_actions)
+
     noise = noise_object()
     sampled_actions = sampled_actions.numpy() + noise
 
@@ -280,11 +296,9 @@ ou_noise = OUActionNoise(
     mean=np.zeros(num_actions), std_deviation=float(std_dev) * np.ones(num_actions)
 )
 
+
 actor_model = get_actor()
 critic_model = get_critic()
-# actor_model.summary(line_length=None, positions=None, print_fn=None)
-# critic_model.summary(line_length=None, positions=None, print_fn=None)
-
 
 target_actor = get_actor()
 target_critic = get_critic()
@@ -293,21 +307,31 @@ target_critic = get_critic()
 target_actor.set_weights(actor_model.get_weights())
 target_critic.set_weights(critic_model.get_weights())
 
+
+reload =False
+if reload:
+    actor_model.load_weights("SpringBox_actor.h5")
+    critic_model.load_weights("SpringBox_critic.h5")
+
+    target_actor.load_weights("SpringBox_target_actor.h5")
+    target_critic.load_weights("SpringBox_target_critic.h5")
+
 # Learning rate for actor-critic models
-critic_lr = 0.002
+critic_lr = 0.0002
 actor_lr = 0.0001
 
-critic_optimizer = tf.keras.optimizers.Adam(critic_lr, clipnorm=1.0)
-actor_optimizer = tf.keras.optimizers.Adam(actor_lr, clipnorm=1.0)
+critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
+actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
 
 total_episodes = 100
 #total_episodes = 5
+
 # Discount factor for future rewards
 gamma = 0.99
 # Used to update target networks
 tau = 0.005
 
-buffer = Buffer(50000, 32)
+buffer = Buffer(50000, 64)
 
 """
 Now we implement our main training loop, and iterate over episodes.
@@ -337,27 +361,28 @@ for ep in tqdm(range(total_episodes)):
     prev_state = env.reset()
     episodic_reward = 0
     ep_frame = 0
+
+
     while True:
         # Uncomment this to see the Actor in action
         # But not in a python notebook.
+        # env.render()
         if render:
             env.render()
 
         tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
-
         action = policy(tf_prev_state, ou_noise)[0]
 
         # Recieve state and reward from environment.
         state, reward, done, info = env.step(action)
 
         buffer.record((prev_state, action, reward, state))
-
         episodic_reward += reward
 
         buffer.learn()
         update_target(tau)
 
-        if done or ep_frame > 18:
+        if done or ep_frame > 18
             break
 
         prev_state = state
@@ -365,7 +390,7 @@ for ep in tqdm(range(total_episodes)):
 
     ep_reward_list.append(episodic_reward)
 
-    # Mean of last 40 episodes
+
     render = False
     #if ep % 5 == 0:
     #    render = True
