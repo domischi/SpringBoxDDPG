@@ -6,3 +6,6 @@ raytune/
 # Ignore data files
 *.h5
 *.png
+
+# Ignore temporary files
+*.swp
