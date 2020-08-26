@@ -12,6 +12,7 @@ from tqdm import tqdm as std_tqdm
 tqdm = partial(std_tqdm, ncols=100)
 import uuid
 import os
+import shutil
 import numba
 from numba.core.errors import NumbaWarning
 import warnings
@@ -240,7 +241,13 @@ class SpringBoxEnv(gym.Env):
         reward = score - self.previous_score
         self.previous_score = score
 
+        if done:
+            self.clean_up()
+
         return obs, reward, done, {}
+    
+    def clean_up(self):
+        shutil.rmtree(data_dir)
 
     def reset(self):
         self.pXs = (
@@ -258,6 +265,9 @@ class SpringBoxEnv(gym.Env):
         self.obs = np.zeros_like(self.observation_space.sample())
         self._config = cfg()
         self.previous_score = None
+        data_dir = f"/tmp/boxspring-{run_id}-{unique_id}"
+        os.makedirs(data_dir)
+        self.sim_info = {"data_dir": data_dir}
         self.sim_info = get_sim_info(self.sim_info, self._config, 0)
         self.current_step = 0
 
