@@ -208,16 +208,7 @@ class SpringBoxEnv(gym.Env):
             self._config, self.sim_info["t"], lx=self.X, ly=self.Y, lh=np.transpose(A)
         )
 
-        # run every action pattern for 5 iterations
-        for i in range(5):
-            (
-                self.pXs,
-                self.pVs,
-                self.acc,
-                self.ms,
-                self.fXs,
-                self.fVs,
-            ) = integrate_one_timestep(
+        self.pXs, self.pVs, self.acc, self.ms, self.fXs, self.fVs, = integrate_one_timestep(
                 pXs=self.pXs,
                 pVs=self.pVs,
                 acc=self.acc,
