@@ -3,6 +3,7 @@ from gym import spaces
 
 import uuid
 import os
+import json
 import shutil
 import numba
 from numba.core.errors import NumbaWarning
@@ -24,59 +25,68 @@ import matplotlib
 # matplotlib.use('tkagg')
 import matplotlib.pyplot as plt
 
-ex = Experiment("SpringBox")
-# ex.observers.append(MongoObserver.create())
-ex.observers.append(FileStorageObserver.create(f"data/"))
-ex.dependencies.add(PackageDependency("SpringBox", SpringBox.__version__))
+def default_cfg():
+    config=dict(
+        ## Simulation parameters
+        sweep_experiment = False,
+        mixing_experiment = True,
+        run_id = 0,
+        savefreq_fig = int(1e6) ,
+        savefreq_data_dump = 100000,
+        # Speeds up the computation somewhat, but incurs an error due to oversmoothing of fluids (which could however be somewhat physical)
+        use_interpolated_fluid_velocities = True,
+        dt = 0.05,
+        T = 1.,
+        particle_density = 6.,
+        MAKE_VIDEO = False,
+        SAVEFIG = False,
+        const_particle_density = False,
+        measure_one_timestep_correlator = False,
+        periodic_boundary = True,
 
+        ## Geometry parameters / Activation Fn
+        # activation_fn_type = 'const-rectangle' # For the possible choices, see the activation.py file
+        activation_fn_type = "activation_matrix",
+        L = 2,
+        ## Interaction parameters
+        # Particle properties
+        m_init = 1.0,
+        activation_decay_rate = 10.0,  # Ex. at dt=0.01 this leads to an average deactivation of 10% of the particles
+        # Spring properties
+        spring_cutoff = 1.5,
+        spring_k = 3.0,
+        spring_r0 = 0.2,
+        # LJ properties
+        LJ_eps = 0.0,
+        #LJ_r0 = 0.05
+        #LJ_cutoff = 2.5 / 1.122 * LJ_r0  # canonical choice
+        # Brownian properties
+        brownian_motion_delta = 0.0,
+
+        ## Fluid parameters
+        mu = 10.0,
+        Rdrag = 0.0,
+        drag_factor = 1,
+    )
+
+    config['spring_lower_cutoff'] = config['spring_cutoff'] / 25,
+    config['n_part'] = int(config['particle_density'] * ((2 * config['L']) ** 2))
+    if config['mixing_experiment']:
+        assert config['n_part'] % 2 == 0
+    return config
 
 def cfg():
-    ## Simulation parameters
-    sweep_experiment = False
-    mixing_experiment = True
-    run_id = 0
-    savefreq_fig = int(1e6) 
-    savefreq_data_dump = 100000
-    # Speeds up the computation somewhat, but incurs an error due to oversmoothing of fluids (which could however be somewhat physical)
-    use_interpolated_fluid_velocities = True
-    dt = 0.05
-    T = 1.
-    particle_density = 6.
-    MAKE_VIDEO = False
-    SAVEFIG = False
-    const_particle_density = False
-    measure_one_timestep_correlator = False
-    periodic_boundary = True
+    config_file = '../environment_config.json'
+    if os.path.isfile(config_file):
+        with open(config_file, 'r') as f:
+            conf_dict = json.load(f)
+    else:
+        print("Did not find configuration file, generate a default one!")
+        conf_dict = default_cfg()
 
-    ## Geometry parameters / Activation Fn
-    # activation_fn_type = 'const-rectangle' # For the possible choices, see the activation.py file
-    activation_fn_type = "activation_matrix"
-    #AR = 0.75
-    L = 2
-    n_part = int(particle_density * ((2 * L) ** 2))
-    if mixing_experiment:
-        assert n_part % 2 == 0
-
-    ## Interaction parameters
-    # Particle properties
-    m_init = 1.0
-    activation_decay_rate = 10.0  # Ex. at dt=0.01 this leads to an average deactivation of 10% of the particles
-    # Spring properties
-    spring_cutoff = 1.5
-    spring_lower_cutoff = spring_cutoff / 25
-    spring_k = 3.0
-    spring_r0 = 0.2
-    # LJ properties
-    LJ_eps = 0.0
-    LJ_r0 = 0.05
-    LJ_cutoff = 2.5 / 1.122 * LJ_r0  # canonical choice
-    # Brownian properties
-    brownian_motion_delta = 0.0
-
-    ## Fluid parameters
-    mu = 10.0
-    Rdrag = 0.0
-    drag_factor = 1
+        with open(config_file, 'w') as f:
+            json.dump(conf_dict, f, indent=4)
+    return conf_dict
 
 
 def get_sim_info(old_sim_info, _config, i):
