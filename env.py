@@ -4,6 +4,7 @@ from gym import spaces
 import uuid
 import os
 import json
+import random
 import shutil
 import numba
 from numba.core.errors import NumbaWarning
@@ -12,7 +13,7 @@ warnings.simplefilter("ignore", category=NumbaWarning)
 
 import SpringBox
 from SpringBox.integrator import integrate_one_timestep
-from SpringBox.illustration import get_mixing_hists
+from SpringBox.illustration import get_mixing_hists, plot_mixing_on_axis, plot_light_pattern, generate_video_from_png
 from SpringBox.activation import *
 from SpringBox.post_run_hooks import post_run_hooks
 from SpringBox.measurements import (
@@ -24,6 +25,7 @@ from SpringBox.measurements import (
 import matplotlib
 # matplotlib.use('tkagg')
 import matplotlib.pyplot as plt
+import time
 
 def default_cfg():
     config=dict(
@@ -75,7 +77,7 @@ def default_cfg():
         assert config['n_part'] % 2 == 0
     return config
 
-def cfg():
+def cfg(do_video=False):
     config_file = '../environment_config.json'
     if os.path.isfile(config_file):
         with open(config_file, 'r') as f:
@@ -86,6 +88,9 @@ def cfg():
 
         with open(config_file, 'w') as f:
             json.dump(conf_dict, f, indent=4)
+    if do_video:
+        conf_dict['savefreq_fig'] = 1
+        conf_dict['MAKE_VIDEO'] = True
     return conf_dict
 
 
@@ -121,13 +126,14 @@ class SpringBoxEnv(gym.Env):
 
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, grid_size, THRESH, CAP=4):
+    def __init__(self, grid_size, THRESH, CAP=4, PROB_VIDEO=.1):
         super(SpringBoxEnv, self).__init__()
 
         self.THRESH = THRESH
         self.CAP = CAP
         self.grid_size = grid_size
-        self._config = cfg()
+        self.do_video = random.random() < PROB_VIDEO
+        self._config = cfg(self.do_video)
 
         run_id = self._config["run_id"]
         unique_id = str(uuid.uuid4())
@@ -169,12 +175,6 @@ class SpringBoxEnv(gym.Env):
         )
         self.obs = np.zeros_like(self.observation_space.sample())
 
-        plt.ion()
-        self.fig, self.ax = plt.subplots()
-        self.sc = self.ax.scatter([], [])
-        self.sc2 = self.ax.scatter([], [])
-        plt.draw()
-
         self.lights = np.zeros(shape=(self.grid_size, self.grid_size))
         self.previous_score = None
 
@@ -190,6 +190,26 @@ class SpringBoxEnv(gym.Env):
     def sample_observation(self):
         return self.observation_space.sample()
 
+    def plot_frame(self):
+        fname=f"{self.sim_info['data_dir']}/frame_{self.current_step:03}.png"
+        title=f"Step: {self.current_step:03}, Score: {self.previous_score:.4f}"
+        fig = plt.figure(figsize=(5,5))
+        plot_mixing_on_axis(plt.gca(), self.pXs, self.sim_info, title, fix_frame=True, SAVEFIG=False, ex=None, nbins=self.grid_size, cap=self.CAP, alpha=.85)
+        plot_light_pattern(plt.gca(), self.lights, self.sim_info, alpha=.3)
+        plt.gca().get_xaxis().set_visible(False)
+        plt.gca().get_yaxis().set_visible(False)
+        plt.tight_layout()
+
+        plt.savefig(fname)
+        plt.close(fig)
+
+
+    def collect_video(self):
+        fname = generate_video_from_png(self.sim_info["data_dir"])
+        if fname is None:
+            raise RuntimeError("Wanted to collect video, but apparently this failed. Check the folder self.sim_info['data_dir']")
+        return fname
+
     def step(self, action):
         done = False
         self.sim_info = get_sim_info(self.sim_info, self._config, self.current_step)
@@ -203,6 +223,10 @@ class SpringBoxEnv(gym.Env):
         if self.previous_score == None:
             obs = self.calculate_obs()
             self.previous_score = get_mixing_score(self.pXs, self._config)
+
+        if self.do_video:
+            self.plot_frame()
+
 
         activation_fn = activation_fn_dispatcher(
             self._config, self.sim_info["t"], lx=self.X, ly=self.Y, lh=np.transpose(A)
@@ -238,6 +262,12 @@ class SpringBoxEnv(gym.Env):
         return obs, reward, done, {}
     
     def clean_up(self):
+        if self.do_video:
+            self.plot_frame()
+            old_location = self.collect_video()
+            new_location = f'../video_{int(time.time())}.avi'
+            os.rename(old_location, new_location)
+            print(f'Collected example video: {new_location}')
         shutil.rmtree(self.sim_info['data_dir'])
 
     def reset(self):
