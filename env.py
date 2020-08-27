@@ -228,7 +228,7 @@ class SpringBoxEnv(gym.Env):
         return obs, reward, done, {}
     
     def clean_up(self):
-        shutil.rmtree(data_dir)
+        shutil.rmtree(self.sim_info['data_dir'])
 
     def reset(self):
         self.pXs = (
@@ -246,7 +246,8 @@ class SpringBoxEnv(gym.Env):
         self.obs = np.zeros_like(self.observation_space.sample())
         self._config = cfg()
         self.previous_score = None
-        data_dir = f"/tmp/boxspring-{run_id}-{unique_id}"
+        unique_id = str(uuid.uuid4())
+        data_dir = f"/tmp/boxspring-{self._config['run_id']}-{unique_id}"
         os.makedirs(data_dir)
         self.sim_info = {"data_dir": data_dir}
         self.sim_info = get_sim_info(self.sim_info, self._config, 0)
