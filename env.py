@@ -1,15 +1,6 @@
 import gym
 from gym import spaces
 
-from sacred import Experiment, SETTINGS
-from sacred.dependencies import PackageDependency
-from sacred.observers import FileStorageObserver, MongoObserver
-from sacred.utils import apply_backspaces_and_linefeeds
-from functools import partial
-from copy import deepcopy
-from tqdm import tqdm as std_tqdm
-
-tqdm = partial(std_tqdm, ncols=100)
 import uuid
 import os
 import shutil
@@ -39,7 +30,6 @@ ex.observers.append(FileStorageObserver.create(f"data/"))
 ex.dependencies.add(PackageDependency("SpringBox", SpringBox.__version__))
 
 
-@ex.config
 def cfg():
     ## Simulation parameters
     sweep_experiment = False
