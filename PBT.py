@@ -287,8 +287,8 @@ if __name__ == "__main__":
     ray.init(num_cpus=int(os.environ.get('SLURM_NTASKS', '1')))
 
     # Hyper-Hyper parameters
-    epochs_per_generation = 10
-    population_size = 10
+    epochs_per_generation = 25
+    population_size = 16
     num_generations = 4
 
     hyperparam_mutations = dict()
@@ -334,7 +334,7 @@ if __name__ == "__main__":
                              total_episodes = epochs_per_generation,
                              n_epochs = epochs_per_generation,
                              grid_size = 16,
-                             probability_to_make_video =.02,
+                             probability_to_make_video =2./(epochs_per_generation*population_size), ## Do 2 videos (on average) throughout each generation of workers
                              THRESH = tune.sample_from(lambda _: random.choice(hyperparam_mutations['THRESH'])),
                              noise_std_dev = tune.sample_from(lambda _: random.choice(hyperparam_mutations['noise_std_dev'])),
                              actor_n_layers       = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_n_layers"        ])),
