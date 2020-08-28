@@ -77,9 +77,9 @@ class DDPG_Trainable(tune.Trainable):
         def get_actor(config):
             inputs = layers.Input(shape=self.num_states)
             for i in range(config['actor_n_layers']):
-                out = layers.Conv2D( config[f'actor_channels_{i}'], config[f'actor_kernel_{i}'], activation='relu', padding='same', data_format="channels_first")(inputs)
+                out = layers.Conv2D( config[f'actor_channels_{i}'], config[f'actor_kernel_{i}'], activation='relu', padding='same')(inputs)
                 out = layers.BatchNormalization()(out)
-            out = layers.Conv2D( 1, config[f'actor_kernel_final'], activation='sigmoid', padding='same', data_format="channels_first")(out)
+            out = layers.Conv2D( 1, config[f'actor_kernel_final'], activation='sigmoid', padding='same')(out)
             model = tf.keras.Model(inputs, out)
             return model
 
@@ -87,14 +87,14 @@ class DDPG_Trainable(tune.Trainable):
         def get_critic(config):
             # Inputs
             state_input = layers.Input(shape=self.num_states)
-            action_input = layers.Input(shape=(1,*self.num_actions)) ## [BATCH_SIZE (None), Channels (1), grid_size_x, grid_size_y] where BATCH_SIZE is inferred at runtime
+            action_input = layers.Input(shape=(*self.num_actions, 1)) ## [BATCH_SIZE (None), grid_size_x, grid_size_y, Channels (1)] where BATCH_SIZE is inferred at runtime
 
             # Concatenate
-            out = tf.keras.layers.Concatenate(axis=1)([state_input, action_input])
+            out = tf.keras.layers.Concatenate(axis=-1)([state_input, action_input])
 
             # Apply convolutions
             for i in range(config['critic_n_conv_layers']):
-                out = layers.Conv2D( config[f'critic_channels_{i}'], config[f'critic_kernel_{i}'], activation='relu', padding='same', data_format="channels_first")(out)
+                out = layers.Conv2D( config[f'critic_channels_{i}'], config[f'critic_kernel_{i}'], activation='relu', padding='same')(out)
                 out = layers.BatchNormalization()(out)
 
             # Flatten
@@ -211,7 +211,7 @@ class DDPG_Trainable(tune.Trainable):
         # Convert to tensors
         state_batch      = tf.convert_to_tensor(self.state_buffer[batch_indices])
         action_batch     = tf.convert_to_tensor(self.action_buffer[batch_indices])
-        action_batch     = tf.expand_dims(action_batch, axis=1)
+        action_batch     = tf.expand_dims(action_batch, axis=-1)
         reward_batch     = tf.convert_to_tensor(self.reward_buffer[batch_indices])
         reward_batch     = tf.cast(reward_batch, dtype= tf.float32)
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
@@ -325,9 +325,9 @@ if __name__ == "__main__":
 
     ## If this code throws an error bytes has no readonly flag, comment out a line in cloudpickle_fast (see this discussion: https://github.com/ray-project/ray/issues/8262)
     for resume in [True, False]:
-        try: 
+        try:
             tune.run(DDPG_Trainable,
-                     verbose=1,
+                     verbose=0,
                      local_dir=BASE_DIR,
                      config = dict(
                              total_episodes = epochs_per_generation,
@@ -363,7 +363,7 @@ if __name__ == "__main__":
                          ),
                      scheduler = schedule,
                      stop = {'training_iteration': num_generations*epochs_per_generation},
-                     resources_per_trial={'gpu': 1, 'cpu': 1},
+                     resources_per_trial={'cpu': 1},
                      num_samples=population_size,
                      resume=resume,
                      global_checkpoint_period=60,

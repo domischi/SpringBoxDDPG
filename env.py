@@ -171,7 +171,7 @@ class SpringBoxEnv(gym.Env):
         )
         ## Example for using image as input:
         self.observation_space = spaces.Box(
-            low=0, high=1, shape=(2, self.grid_size, self.grid_size)
+            low=0, high=1, shape=(self.grid_size, self.grid_size, 2)
         )
         self.obs = np.zeros_like(self.observation_space.sample())
 
@@ -182,7 +182,7 @@ class SpringBoxEnv(gym.Env):
         _, _, H1, H2 = get_mixing_hists(
             self.pXs, self.grid_size, self.sim_info, cap=self.CAP
         )
-        return np.array([H1, H2])
+        return np.stack([H1, H2], axis=-1) # Channels last
 
     def sample_action(self):
         return self.action_space.sample()
