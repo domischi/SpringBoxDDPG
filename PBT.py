@@ -283,7 +283,7 @@ class DDPG_Trainable(tune.Trainable):
         self.target_critic.compile(self.critic_optimizer)
 
 if __name__ == "__main__":
-    IS_ON_CLUSTER = ('dominiks' in os.env['HOME']) # Bad proxy for this property, but up to now didn't find anything better
+    IS_ON_CLUSTER = ('dominiks' in os.environ['HOME']) # Bad proxy for this property, but up to now didn't find anything better
     if IS_ON_CLUSTER:
         ray.init(num_cpus=int(os.environ.get('SLURM_NTASKS', '1')), include_dashboard=False, temp_dir = '/tmp/ray-dominiks')
     else:
