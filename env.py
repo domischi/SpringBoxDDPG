@@ -266,7 +266,7 @@ class SpringBoxEnv(gym.Env):
             self.plot_frame()
             old_location = self.collect_video()
             new_location = f'../video_{int(time.time())}.avi'
-            os.rename(old_location, new_location)
+            shutil.move(old_location, new_location)
             print(f'Collected example video: {new_location}')
         shutil.rmtree(self.sim_info['data_dir'])
 
