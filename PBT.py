@@ -36,7 +36,7 @@ class DDPG_Trainable(tune.Trainable):
         self.THRESH = config['THRESH']
 
         # Environment variables
-        self.env = SpringBoxEnv(grid_size=self.config['grid_size'], THRESH=self.THRESH, PROB_VIDEO=config['probability_to_make_video'])
+        self.env = SpringBoxEnv(grid_size=self.config['grid_size'], THRESH=self.THRESH, PROB_VIDEO=config['probability_to_make_video'], light_density_punishment = config['light_density_punishment'] )
         self.env.reset()
         self.num_states = self.env.observation_space.shape
         self.num_actions = self.env.action_space.shape
@@ -338,6 +338,7 @@ if __name__ == "__main__":
                              n_epochs = epochs_per_generation,
                              grid_size = 16,
                              probability_to_make_video =2./(epochs_per_generation*population_size), ## Do 2 videos (on average) throughout each generation of workers
+                             light_density_punishment = .01,
                              THRESH = tune.sample_from(lambda _: random.choice(hyperparam_mutations['THRESH'])),
                              noise_std_dev = tune.sample_from(lambda _: random.choice(hyperparam_mutations['noise_std_dev'])),
                              actor_n_layers       = tune.sample_from(lambda _: random.choice(hyperparam_mutations["actor_n_layers"        ])),

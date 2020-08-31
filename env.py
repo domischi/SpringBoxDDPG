@@ -126,10 +126,11 @@ class SpringBoxEnv(gym.Env):
 
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, grid_size, THRESH, CAP=4, PROB_VIDEO=.1):
+    def __init__(self, grid_size, THRESH, CAP=4, PROB_VIDEO=.1, light_density_punishment=.01):
         super(SpringBoxEnv, self).__init__()
 
         self.THRESH = THRESH
+        self.light_density_punishment = light_density_punishment
         self.CAP = CAP
         self.grid_size = grid_size
         self.do_video = random.random() < PROB_VIDEO
@@ -251,7 +252,9 @@ class SpringBoxEnv(gym.Env):
         obs = self.calculate_obs()
         self.current_step += 1
 
-        reward = score - self.previous_score
+        mixing_reward = score - self.previous_score
+        light_sparsity_reward = -(A.sum()/A.size)/self.N_steps ## Add sparsity constraint -> minimal score: -1 (fire all lights always), max score: 0 (never fire a light)
+        reward = mixing_reward*(1-self.light_density_punishment)+self.light_density_punishment*light_sparsity_reward
         self.previous_score = score
 
         if done:
