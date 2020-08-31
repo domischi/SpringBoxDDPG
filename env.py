@@ -214,11 +214,9 @@ class SpringBoxEnv(gym.Env):
         done = False
         self.sim_info = get_sim_info(self.sim_info, self._config, self.current_step)
 
-        A = (action.reshape((self.grid_size, self.grid_size)) > self.THRESH).astype(int)
+        A = (action > self.THRESH).astype(int)
 
         self.lights = np.copy(A)
-
-        reward = 0
 
         if self.previous_score == None:
             obs = self.calculate_obs()
