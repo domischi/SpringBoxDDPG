@@ -149,6 +149,8 @@ class DDPG_Trainable(tune.Trainable):
     def step(self): # Play one game ## Should only do one step of a game
         prev_state = self.env.reset()
         episodic_reward = 0
+        mixing_reward = []
+        light_sparsity_reward = []
         ep_frame = 0
         while True: # Play one game
             tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
@@ -161,11 +163,13 @@ class DDPG_Trainable(tune.Trainable):
             self.record((prev_state, action, reward, state))
 
             episodic_reward += reward
+            mixing_reward.append(info['mixing_reward'])
+            light_sparsity_reward.append(info['light_sparsity_reward'])
 
             self.learn()
             self.update_target()
 
-            if done: # or ep_frame >= 20-1: # TODO get this number out of a proper config file
+            if done:
                 break
 
             prev_state = state
@@ -177,7 +181,9 @@ class DDPG_Trainable(tune.Trainable):
         return {
                 "epoch": self.n,
                 "total_reward": self.ep_reward_list,
-                "avg_reward": self.ep_reward_list[-1],
+                "episode_reward": episodic_reward,
+                "mixing_reward": np.mean(mixing_reward),
+                "light_sparsity_reward": np.mean(light_sparsity_reward),
             }
 
     def policy(self, state):
@@ -291,8 +297,8 @@ if __name__ == "__main__":
 
     # Hyper-Hyper parameters
     epochs_per_generation = 25
-    population_size = 16
-    num_generations = 4
+    population_size = 32
+    num_generations = 10
 
     hyperparam_mutations = dict()
     hyperparam_mutations["actor_lr"] = np.geomspace(1e-5, 1e-1, 9).tolist()
@@ -322,7 +328,7 @@ if __name__ == "__main__":
 
     schedule = PopulationBasedTraining(
             time_attr='epoch',
-            metric='avg_reward',
+            metric='episode_reward',
             mode='max',
             perturbation_interval=epochs_per_generation,
             hyperparam_mutations=hyperparam_mutations)

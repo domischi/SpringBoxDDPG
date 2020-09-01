@@ -260,7 +260,7 @@ class SpringBoxEnv(gym.Env):
         if done:
             self.clean_up()
 
-        return obs, reward, done, {}
+        return obs, reward, done, {"mixing_reward": mixing_reward, "light_sparsity_reward": light_sparsity_reward}
     
     def clean_up(self):
         if self.do_video:
