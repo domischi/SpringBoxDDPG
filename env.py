@@ -126,7 +126,7 @@ class SpringBoxEnv(gym.Env):
 
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, grid_size, THRESH, CAP=4, PROB_VIDEO=.1, light_density_punishment=.01):
+    def __init__(self, grid_size, THRESH, PROB_VIDEO, light_density_punishment, CAP=4):
         super(SpringBoxEnv, self).__init__()
 
         self.THRESH = THRESH
