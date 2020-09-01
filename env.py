@@ -178,6 +178,7 @@ class SpringBoxEnv(gym.Env):
 
         self.lights = np.zeros(shape=(self.grid_size, self.grid_size))
         self.previous_score = None
+        self.previous_reward = None # Including the light sparsity term
 
     def calculate_obs(self):
         _, _, H1, H2 = get_mixing_hists(
@@ -193,7 +194,7 @@ class SpringBoxEnv(gym.Env):
 
     def plot_frame(self):
         fname=f"{self.sim_info['data_dir']}/frame_{self.current_step:03}.png"
-        title=f"Step: {self.current_step:03}, Score: {self.previous_score:.4f}"
+        title=f"Step: {self.current_step:03}, Score: {self.previous_reward:.4f}"
         fig = plt.figure(figsize=(5,5))
         plot_mixing_on_axis(plt.gca(), self.pXs, self.sim_info, title, fix_frame=True, SAVEFIG=False, ex=None, nbins=self.grid_size, cap=self.CAP, alpha=.85)
         plot_light_pattern(plt.gca(), self.lights, self.sim_info, alpha=.3)
@@ -222,6 +223,8 @@ class SpringBoxEnv(gym.Env):
         if self.previous_score == None:
             obs = self.calculate_obs()
             self.previous_score = get_mixing_score(self.pXs, self._config)
+        if self.previous_reward == None:
+            self.previous_reward = -(A.sum()/A.size)/self.N_steps # since score is per definition 0 in first timestep
 
         if self.do_video:
             self.plot_frame()
@@ -256,6 +259,7 @@ class SpringBoxEnv(gym.Env):
         light_sparsity_reward = -(A.sum()/A.size)/self.N_steps ## Add sparsity constraint -> minimal score: -1 (fire all lights always), max score: 0 (never fire a light)
         reward = mixing_reward*(1-self.light_density_punishment)+self.light_density_punishment*light_sparsity_reward
         self.previous_score = score
+        self.previous_reward = reward
 
         if done:
             self.clean_up()
@@ -287,6 +291,7 @@ class SpringBoxEnv(gym.Env):
         self.obs = np.zeros_like(self.observation_space.sample())
         self._config = cfg()
         self.previous_score = None
+        self.previous_reward = None
         unique_id = str(uuid.uuid4())
         data_dir = f"/tmp/boxspring-{self._config['run_id']}-{unique_id}"
         os.makedirs(data_dir)
