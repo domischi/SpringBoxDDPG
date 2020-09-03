@@ -278,7 +278,7 @@ class DDPG_Trainable(tune.Trainable):
         self.actor_lr = save_dict['actor_lr']
         self.critic_lr = save_dict['critic_lr']
         self.THRESH = save_dict['THRESH']
-        self.env = SpringBoxEnv(grid_size=self.config['grid_size'], THRESH=self.THRESH, PROB_VIDEO=self.config['probability_to_make_video'], light_density_punishment = config['light_density_punishment']) # Required since self.THRESH is possibly not initialized
+        self.env = SpringBoxEnv(grid_size=self.config['grid_size'], THRESH=self.THRESH, PROB_VIDEO=self.config['probability_to_make_video'], light_density_punishment = self.config['light_density_punishment']) # Required since self.THRESH is possibly not initialized
         self.env.reset()
         self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, clipnorm=1.0)
         self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, clipnorm=1.0)
