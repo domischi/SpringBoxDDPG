@@ -6,9 +6,12 @@ import os
 import json
 import random
 import shutil
-import numba
-from numba.core.errors import NumbaWarning
+
 import warnings
+try:
+    from numba.core.errors import NumbaWarning
+except ImportError:
+    from numba.errors import NumbaWarning
 warnings.simplefilter("ignore", category=NumbaWarning)
 
 import SpringBox
@@ -22,8 +25,6 @@ from SpringBox.measurements import (
     get_mixing_score,
 )
 
-import matplotlib
-# matplotlib.use('tkagg')
 import matplotlib.pyplot as plt
 import time
 
