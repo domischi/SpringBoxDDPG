@@ -139,7 +139,7 @@ class DDPG_Trainable(tune.Trainable):
         
     def step(self): # Play one game ## Should only do one step of a game
         prev_state = self.env.reset()
-        episodic_reward = 0
+        rewards = []
         mixing_reward = []
         light_sparsity_reward = []
         ep_frame = 0
@@ -153,7 +153,7 @@ class DDPG_Trainable(tune.Trainable):
 
             self.record((prev_state, action, reward, state))
 
-            episodic_reward += reward
+            rewards.append(reward)
             mixing_reward.append(info['mixing_reward'])
             light_sparsity_reward.append(info['light_sparsity_reward'])
 
@@ -166,13 +166,15 @@ class DDPG_Trainable(tune.Trainable):
             prev_state = state
             ep_frame += 1
 
-        self.ep_reward_list.append(episodic_reward)
+        print(f"Buffer filled: {self.buffer_counter}")
+
+        self.ep_reward_list.append(rewards[-1])
         self.n += 1
 
         return {
                 "epoch": self.n,
                 "total_reward": self.ep_reward_list,
-                "episode_reward": episodic_reward,
+                "episode_reward": rewards[-1],
                 "mixing_reward": np.mean(mixing_reward),
                 "light_sparsity_reward": np.mean(light_sparsity_reward),
             }
