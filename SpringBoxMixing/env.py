@@ -180,6 +180,8 @@ class SpringBoxEnv(gym.Env):
         self.lights = np.zeros(shape=(self.grid_size, self.grid_size))
         self.mixing_score = None
         self.light_score = None
+        self.mixing_reward = None
+        self.light_reward = None
         self.total_reward = None
 
     def calculate_obs(self):
@@ -253,7 +255,7 @@ class SpringBoxEnv(gym.Env):
         if done:
             self.clean_up()
 
-        return self.calculate_obs(), self.total_reward, done, {"mixing_reward": self.mixing_score, "light_sparsity_reward": self.light_score}
+        return self.calculate_obs(), self.total_reward, done, {"mixing_score": self.mixing_score, "mixing_reward": self.mixing_reward, "light_sparsity_score": self.light_score, "light_sparsity_reward": self.light_reward}
     
     def compute_rewards(self):
         ## Initialize if new sim
@@ -263,7 +265,9 @@ class SpringBoxEnv(gym.Env):
         else: ## Update if already existing simulation
             self.mixing_score += get_mixing_score(self.pXs, self._config)
             self.light_score += -(self.lights.sum()/self.lights.size)/self.N_steps
-        self.total_reward = self.mixing_score*(1-self.light_density_punishment) + self.light_density_punishment*self.light_score
+        self.mixing_reward = self.mixing_score*(1-self.light_density_punishment)
+        self.light_reward = self.light_density_punishment*self.light_score
+        self.total_reward = self.mixing_reward + self.light_reward
 
 
     def clean_up(self):
