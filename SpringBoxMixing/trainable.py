@@ -166,8 +166,6 @@ class DDPG_Trainable(tune.Trainable):
             prev_state = state
             ep_frame += 1
 
-        print(f"Buffer filled: {self.buffer_counter}")
-
         self.ep_reward_list.append(rewards[-1])
         self.n += 1
 
