@@ -79,7 +79,7 @@ def default_cfg():
     return config
 
 def cfg(do_video=False):
-    config_file = '../environment_config.json'
+    config_file = 'environment_config.json'
     if os.path.isfile(config_file):
         with open(config_file, 'r') as f:
             conf_dict = json.load(f)
@@ -274,7 +274,7 @@ class SpringBoxEnv(gym.Env):
         if self.do_video:
             self.plot_frame()
             old_location = self.collect_video()
-            new_location = f'../video_{int(time.time())}.avi'
+            new_location = f'video_{int(time.time())}.avi'
             shutil.move(old_location, new_location)
             print(f'Collected example video: {new_location}')
         shutil.rmtree(self.sim_info['data_dir'])
