@@ -127,14 +127,15 @@ class SpringBoxEnv(gym.Env):
 
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, grid_size, THRESH, PROB_VIDEO, light_density_punishment, CAP=4):
+    def __init__(self, env_config):
+        self.FLATTENED_SPACES = env_config.get("FLATTENED_SPACES", True)
+        self.grid_size = env_config.get("grid_size",16)
+        self.THRESH = env_config.get("THRESH",.5)
+        self.light_density_punishment = env_config.get("light_density_punishment",.1)
+        self.CAP = env_config.get("CAP",4)
         super(SpringBoxEnv, self).__init__()
 
-        self.THRESH = THRESH
-        self.light_density_punishment = light_density_punishment
-        self.CAP = CAP
-        self.grid_size = grid_size
-        self.do_video = random.random() < PROB_VIDEO
+        self.do_video = random.random() < env_config.get("PROB_VIDEO",)
         self._config = cfg(self.do_video)
 
         run_id = self._config["run_id"]
@@ -165,19 +166,14 @@ class SpringBoxEnv(gym.Env):
         self.N_steps = int(self._config["T"] / self._config["dt"])
         self.current_step = 0
 
-        # self.action_space = spaces.Box(low = 0, high = 1, shape = (self.grid_size * self.grid_size,))
-        ## Example for using image as input:
-        # self.observation_space = spaces.Box(low=0, high=1, shape= (self.grid_size*10 * self.grid_size*10,))
-        self.action_space = spaces.Box(
-            low=0, high=1, shape=(self.grid_size, self.grid_size,)
-        )
-        ## Example for using image as input:
-        self.observation_space = spaces.Box(
-            low=0, high=1, shape=(self.grid_size, self.grid_size, 2)
-        )
+        if self.FLATTENED_SPACES:
+            self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size*self.grid_size,))
+            self.observation_space = spaces.Box( low=0, high=self.CAP, shape=(self.grid_size*self.grid_size*2,))
+        else:
+            self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size, self.grid_size,))
+            self.observation_space = spaces.Box( low=0, high=self.CAP, shape=(self.grid_size, self.grid_size, 2))
         self.obs = np.zeros_like(self.observation_space.sample())
-
-        self.lights = np.zeros(shape=(self.grid_size, self.grid_size))
+        self.lights = np.zeros_like(self.action_space.sample())
         self.mixing_score = None
         self.light_score = None
         self.mixing_reward = None
@@ -188,7 +184,10 @@ class SpringBoxEnv(gym.Env):
         _, _, H1, H2 = get_mixing_hists(
             self.pXs, self.grid_size, self.sim_info, cap=self.CAP
         )
-        return np.stack([H1, H2], axis=-1) # Channels last
+        if self.FLATTENED_SPACES:
+            return np.stack([H1, H2], axis=-1).flatten()
+        else: 
+            return np.stack([H1, H2], axis=-1) # Channels last
 
     def sample_action(self):
         return self.action_space.sample()
@@ -220,7 +219,7 @@ class SpringBoxEnv(gym.Env):
         done = False
         self.sim_info = get_sim_info(self.sim_info, self._config, self.current_step)
 
-        self.lights = (action > self.THRESH).astype(int)
+        self.lights = (action.reshape(self.grid_size, self.grid_size) > self.THRESH).astype(int)
 
         if (self.mixing_score is None) or (self.light_score is None) or (self.total_reward is None):
             self.compute_rewards()
@@ -228,6 +227,7 @@ class SpringBoxEnv(gym.Env):
         if self.do_video:
             self.plot_frame()
 
+        
         activation_fn = activation_fn_dispatcher(
             self._config, self.sim_info["t"], lx=self.X, ly=self.Y, lh=np.transpose(self.lights)
         )
@@ -307,23 +307,3 @@ class SpringBoxEnv(gym.Env):
         obs = self.calculate_obs()
 
         return obs
-
-    def render(self, mode="human", close=False, first=False):
-        L = self._config["L"]
-        self.ax.set_xlim(self.sim_info["x_min"], self.sim_info["x_max"])
-        self.ax.set_ylim(self.sim_info["y_min"], self.sim_info["y_max"])
-
-        split = len(self.pXs) // 2
-        x = self.pXs[split:, 0]
-        y = -self.pXs[split:, 1]
-
-        x2 = self.pXs[:split, 0]
-        y2 = -self.pXs[:split, 1]
-
-        self.sc.set_offsets(np.c_[x, y])
-        self.sc2.set_offsets(np.c_[x2, y2])
-
-        self.ax.imshow(self.lights, extent=[-L, L, -L, L])
-
-        self.fig.canvas.draw_idle()
-        plt.pause(0.01)
