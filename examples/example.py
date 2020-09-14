@@ -80,7 +80,8 @@ if __name__ == "__main__":
                              total_episodes = epochs_per_generation,
                              n_epochs = epochs_per_generation,
                              grid_size = 16,
-                             probability_to_make_video =2./(epochs_per_generation*population_size), ## Do 2 videos (on average) throughout each generation of workers
+                             probability_to_make_video = 0,
+                             do_video = False,
                              light_density_punishment = .01,
                              THRESH = tune.sample_from(lambda _: random.choice(hyperparam_mutations['THRESH'])),
                              noise_std_dev = tune.sample_from(lambda _: random.choice(hyperparam_mutations['noise_std_dev'])),

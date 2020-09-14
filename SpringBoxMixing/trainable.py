@@ -28,6 +28,7 @@ class DDPG_Trainable(tune.Trainable):
 
         # Environment variables
         config['PROB_VIDEO']=config['probability_to_make_video']
+        self.config['do_video']= random.rand()<config['probability_to_make_video']
         self.env = SpringBoxEnv(config)
         self.env.reset()
         self.num_states = self.env.observation_space.shape
@@ -272,6 +273,7 @@ class DDPG_Trainable(tune.Trainable):
         self.critic_lr = save_dict['critic_lr']
         self.THRESH = save_dict['THRESH']
         self.config['PROB_VIDEO']=config['probability_to_make_video']
+        self.config['do_video']= random.rand()<config['probability_to_make_video']
         self.env = SpringBoxEnv(self.config) # Required since self.THRESH is possibly not initialized
         self.env.reset()
         self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, clipnorm=1.0)

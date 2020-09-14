@@ -135,7 +135,7 @@ class SpringBoxEnv(gym.Env):
         self.CAP = env_config.get("CAP",4)
         super(SpringBoxEnv, self).__init__()
 
-        self.do_video = random.random() < env_config.get("PROB_VIDEO",)
+        self.do_video = env_config['do_video']
         self._config = cfg(self.do_video)
 
         run_id = self._config["run_id"]
