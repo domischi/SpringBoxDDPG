@@ -208,6 +208,10 @@ class SpringBoxEnv(gym.Env):
         plt.savefig(fname)
         plt.close(fig)
 
+    def activate_do_video(self):
+        self.do_video=True
+    def deactivate_do_video(self):
+        self.do_video=True
 
     def collect_video(self):
         fname = generate_video_from_png(self.sim_info["data_dir"])
