@@ -172,7 +172,7 @@ class SpringBoxEnv(gym.Env):
         else:
             self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size, self.grid_size,))
             self.observation_space = spaces.Box( low=0, high=self.CAP, shape=(self.grid_size, self.grid_size, 2))
-        self.obs = np.zeros_like(self.observation_space.sample())
+        self.obs = np.zeros_like((self.grid_size, self.grid_size, 2))
         self.lights = np.zeros_like(self.action_space.sample())
         self.mixing_score = None
         self.light_score = None
@@ -184,10 +184,8 @@ class SpringBoxEnv(gym.Env):
         _, _, H1, H2 = get_mixing_hists(
             self.pXs, self.grid_size, self.sim_info, cap=self.CAP
         )
-        if self.FLATTENED_SPACES:
-            return np.stack([H1, H2], axis=-1).flatten()
-        else: 
-            return np.stack([H1, H2], axis=-1) # Channels last
+        self.obs = np.stack([H1, H2], axis=-1) # Channels last
+        return self.obs
 
     def sample_action(self):
         return self.action_space.sample()
@@ -254,6 +252,7 @@ class SpringBoxEnv(gym.Env):
         if self.current_step >= self.N_steps:
             done = True
 
+        self.calculate_obs() ## Has to be executed before compute_rewards to be able to determine homogeneity
         self.compute_rewards()
 
         if done:
@@ -261,7 +260,10 @@ class SpringBoxEnv(gym.Env):
 
         info_dir = {"mixing_score": self.mixing_score, "mixing_reward": self.mixing_reward, "light_sparsity_score": self.light_score, "light_sparsity_reward": self.light_reward}
 
-        return self.calculate_obs(), self.total_reward, done, info_dir
+        if self.FLATTENED_SPACES:
+            return self.obs.flatten(), self.total_reward, done, info_dir
+        else:
+            return self.obs, self.total_reward, done, info_dir
     
     def compute_rewards(self):
         self.mixing_score = get_mixing_score(self.pXs, self._config)/self.N_steps
@@ -305,6 +307,9 @@ class SpringBoxEnv(gym.Env):
         self.sim_info = get_sim_info(self.sim_info, self._config, 0)
         self.current_step = 0
 
-        obs = self.calculate_obs()
+        self.calculate_obs()
 
-        return obs
+        if self.FLATTENED_SPACES:
+            return self.obs.flatten()
+        else:
+            return self.obs
