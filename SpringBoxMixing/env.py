@@ -131,7 +131,6 @@ class SpringBoxEnv(gym.Env):
         self.FLATTENED_SPACES = env_config.get("FLATTENED_SPACES", True)
         self.grid_size = env_config.get("grid_size",16)
         self.THRESH = env_config.get("THRESH",.5)
-        self.light_density_punishment = env_config.get("light_density_punishment",.1)
         self.CAP = env_config.get("CAP",4)
         super(SpringBoxEnv, self).__init__()
 
@@ -174,8 +173,24 @@ class SpringBoxEnv(gym.Env):
             self.observation_space = spaces.Box( low=0, high=self.CAP, shape=(self.grid_size, self.grid_size, 2))
         self.obs = np.zeros_like((self.grid_size, self.grid_size, 2))
         self.lights = np.zeros_like(self.action_space.sample())
+
+
+        ## Setup rewards
+        # Set mix of rewards
+        self.homogeneity_multiplier = env_config.get("homogeneity_multiplier")
+        self.mixing_multiplier = env_config.get("mixing_multiplier")
+        self.light_multiplier = env_config.get("light_multiplier")
+        self.total_multipliers = self.homogeneity_multiplier + self.mixing_multiplier + self.light_multiplier 
+
+        # Set stuff required for homogeneity determination
+        self.avg_cell_cnt = self._config["n_part"]/(self.grid_size**2)
+        self.max_inhomogeneity_score = (1-1/(self.grid_size**2))*self._config["n_part"]**2
+
+        # Set the variables for scores and so on
+        self.homogeneity_score = None
         self.mixing_score = None
         self.light_score = None
+        self.homogeneity_reward = None
         self.mixing_reward = None
         self.light_reward = None
         self.total_reward = None
@@ -223,7 +238,7 @@ class SpringBoxEnv(gym.Env):
 
         self.lights = (action.reshape(self.grid_size, self.grid_size) > self.THRESH).astype(int)
 
-        if (self.mixing_score is None) or (self.light_score is None) or (self.total_reward is None):
+        if (self.homogeneity_score is None) or (self.mixing_score is None) or (self.light_score is None) or (self.total_reward is None):
             self.compute_rewards()
 
         if self.do_video:
@@ -258,7 +273,12 @@ class SpringBoxEnv(gym.Env):
         if done:
             self.clean_up()
 
-        info_dir = {"mixing_score": self.mixing_score, "mixing_reward": self.mixing_reward, "light_sparsity_score": self.light_score, "light_sparsity_reward": self.light_reward}
+        info_dir = {"mixing_score"       : self.mixing_score,
+                    "mixing_reward"      : self.mixing_reward,
+                    "light_score"        : self.light_score,
+                    "light_reward"       : self.light_reward,
+                    "homogeneity_score"  : self.homogeneity_score,
+                    "homogeneity_reward" : self.homogeneity_reward}
 
         if self.FLATTENED_SPACES:
             return self.obs.flatten(), self.total_reward, done, info_dir
@@ -266,11 +286,16 @@ class SpringBoxEnv(gym.Env):
             return self.obs, self.total_reward, done, info_dir
     
     def compute_rewards(self):
-        self.mixing_score = get_mixing_score(self.pXs, self._config)/self.N_steps
-        self.light_score = -(self.lights.sum()/self.lights.size)/self.N_steps
-        self.mixing_reward = self.mixing_score*(1-self.light_density_punishment)
-        self.light_reward = self.light_density_punishment*self.light_score
-        self.total_reward = self.mixing_reward + self.light_reward
+        self.homogeneity_score = -np.sum((np.sum(self.obs, axis = -1)-self.avg_cell_cnt)**2)/self.max_inhomogeneity_score
+        self.mixing_score      =  get_mixing_score(self.pXs, self._config)
+        self.light_score       = -self.lights.sum()/self.lights.size
+        self.homogeneity_score /= self.N_steps
+        self.mixing_score      /= self.N_steps
+        self.light_score       /= self.N_steps
+        self.homogeneity_reward = self.homogeneity_multiplier * self.homogeneity_score
+        self.mixing_reward      = self.mixing_multiplier * self.mixing_score
+        self.light_reward       = self.light_multiplier * self.light_score
+        self.total_reward = (self.mixing_reward + self.light_reward + self.homogeneity_reward) / self.total_multipliers
 
 
     def clean_up(self):
@@ -297,8 +322,12 @@ class SpringBoxEnv(gym.Env):
         self.ms = self._config["m_init"] * np.ones(len(self.pXs))
         self.obs = np.zeros_like(self.observation_space.sample())
         self._config = cfg()
+        self.homogeneity_score = None
         self.mixing_score = None
         self.light_score = None
+        self.homogeneity_reward = None
+        self.mixing_reward = None
+        self.light_reward = None
         self.total_reward = None
         unique_id = str(uuid.uuid4())
         data_dir = f"/tmp/boxspring-{self._config['run_id']}-{unique_id}"
