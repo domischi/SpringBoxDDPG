@@ -251,7 +251,7 @@ class SpringBoxEnv(gym.Env):
             )
 
         self.current_step += 1
-        if self.current_step > self.N_steps:
+        if self.current_step >= self.N_steps:
             done = True
 
         self.compute_rewards()
