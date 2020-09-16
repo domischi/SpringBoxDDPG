@@ -128,7 +128,9 @@ class SpringBoxEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
 
     def __init__(self, env_config):
-        self.FLATTENED_SPACES = env_config.get("FLATTENED_SPACES", True)
+        FLATTENED_SPACES = env_config.get("FLATTENED_SPACES", True)
+        self.FLATTENED_OBSERVATION_SPACE = env_config.get("FLATTENED_OBSERVATION_SPACE", FLATTENED_SPACES)
+        self.FLATTENED_ACTION_SPACE = env_config.get("FLATTENED_ACTION_SPACE", FLATTENED_SPACES)
         self.grid_size = env_config.get("grid_size",16)
         self.THRESH = env_config.get("THRESH",.5)
         self.CAP = env_config.get("CAP",4)
@@ -165,12 +167,14 @@ class SpringBoxEnv(gym.Env):
         self.N_steps = int(self._config["T"] / self._config["dt"])
         self.current_step = 0
 
-        if self.FLATTENED_SPACES:
-            self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size*self.grid_size,))
+        if self.FLATTENED_OBSERVATION_SPACE:
             self.observation_space = spaces.Box( low=0, high=self.CAP, shape=(self.grid_size*self.grid_size*2,))
         else:
-            self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size, self.grid_size,))
             self.observation_space = spaces.Box( low=0, high=self.CAP, shape=(self.grid_size, self.grid_size, 2))
+        if self.FLATTENED_ACTION_SPACE:
+            self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size*self.grid_size,))
+        else:
+            self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size, self.grid_size,))
         self.obs = np.zeros_like((self.grid_size, self.grid_size, 2))
         self.lights = np.zeros_like(self.action_space.sample())
 
@@ -280,7 +284,7 @@ class SpringBoxEnv(gym.Env):
                     "homogeneity_score"  : self.homogeneity_score,
                     "homogeneity_reward" : self.homogeneity_reward}
 
-        if self.FLATTENED_SPACES:
+        if self.FLATTENED_OBSERVATION_SPACE:
             return self.obs.flatten(), self.total_reward, done, info_dir
         else:
             return self.obs, self.total_reward, done, info_dir
@@ -338,7 +342,7 @@ class SpringBoxEnv(gym.Env):
 
         self.calculate_obs()
 
-        if self.FLATTENED_SPACES:
+        if self.FLATTENED_OBSERVATION_SPACE:
             return self.obs.flatten()
         else:
             return self.obs
