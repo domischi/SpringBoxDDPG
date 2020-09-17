@@ -145,7 +145,7 @@ class SpringBoxEnv(gym.Env):
         self.sim_info = {"data_dir": data_dir}
         self.sim_info = get_sim_info(self.sim_info, self._config, 0)
 
-        self.CAP = env_config.get("CAP",int(_config["n_part"]/(self.grid_size**2)*4))
+        self.CAP = env_config.get("CAP",int(self._config["n_part"]/(self.grid_size**2)*4))
 
         ## Initialize particlesself.pXs> -0.2
         self.pXs = (
