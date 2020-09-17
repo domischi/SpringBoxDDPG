@@ -133,7 +133,6 @@ class SpringBoxEnv(gym.Env):
         self.FLATTENED_ACTION_SPACE = env_config.get("FLATTENED_ACTION_SPACE", FLATTENED_SPACES)
         self.grid_size = env_config.get("grid_size",16)
         self.THRESH = env_config.get("THRESH",.5)
-        self.CAP = env_config.get("CAP",4)
         super(SpringBoxEnv, self).__init__()
 
         self.do_video = env_config['do_video']
@@ -145,6 +144,8 @@ class SpringBoxEnv(gym.Env):
         os.makedirs(data_dir)
         self.sim_info = {"data_dir": data_dir}
         self.sim_info = get_sim_info(self.sim_info, self._config, 0)
+
+        self.CAP = env_config.get("CAP",int(_config["n_part"]/(self.grid_size**2)*4))
 
         ## Initialize particlesself.pXs> -0.2
         self.pXs = (
