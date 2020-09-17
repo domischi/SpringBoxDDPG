@@ -291,9 +291,9 @@ class SpringBoxEnv(gym.Env):
             return self.obs, self.total_reward, done, info_dir
     
     def compute_rewards(self):
-        self.homogeneity_score = -np.sum((np.sum(self.obs, axis = -1)-self.avg_cell_cnt)**2)/self.max_inhomogeneity_score
-        self.mixing_score      =  get_mixing_score(self.pXs, self._config)
-        self.light_score       = -self.lights.sum()/self.lights.size
+        self.homogeneity_score = 1-np.sum((np.sum(self.obs, axis = -1)-self.avg_cell_cnt)**2)/self.max_inhomogeneity_score
+        self.mixing_score      = get_mixing_score(self.pXs, self._config)
+        self.light_score       = 1-self.lights.sum()/self.lights.size
         self.homogeneity_score /= self.N_steps
         self.mixing_score      /= self.N_steps
         self.light_score       /= self.N_steps
