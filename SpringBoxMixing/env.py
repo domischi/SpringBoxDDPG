@@ -231,6 +231,12 @@ class SpringBoxEnv(gym.Env):
     def deactivate_do_video(self):
         self.do_video=True
 
+    def set_multipliers(self, d):
+        self.homogeneity_multiplier = d.get("homogeneity_multiplier", self.homogeneity_multiplier)
+        self.mixing_multiplier      = d.get("mixing_multiplier"     , self.mixing_multiplier     )
+        self.light_multiplier       = d.get("light_multiplier"      , self.light_multiplier      )
+        self.total_multipliers =  self.homogeneity_multiplier + self.mixing_multiplier + self.light_multiplier 
+
     def collect_video(self):
         fname = generate_video_from_png(self.sim_info["data_dir"])
         if fname is None:
