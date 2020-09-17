@@ -284,12 +284,16 @@ class SpringBoxEnv(gym.Env):
         if done:
             self.clean_up()
 
-        info_dir = {"mixing_score"       : self.mixing_score,
-                    "mixing_reward"      : self.mixing_reward,
-                    "light_score"        : self.light_score,
-                    "light_reward"       : self.light_reward,
-                    "homogeneity_score"  : self.homogeneity_score,
-                    "homogeneity_reward" : self.homogeneity_reward}
+        info_dir = {"mixing_score"           : self.mixing_score,
+                    "mixing_reward"          : self.mixing_reward,
+                    "mixing_multiplier"      : self.mixing_multiplier,
+                    "light_score"            : self.light_score,
+                    "light_reward"           : self.light_reward,
+                    "light_multiplier"       : self.light_multiplier,
+                    "homogeneity_score"      : self.homogeneity_score,
+                    "homogeneity_reward"     : self.homogeneity_reward,
+                    "homogeneity_multiplier" : self.homogeneity_multiplier,
+                    }
 
         if self.FLATTENED_OBSERVATION_SPACE:
             return self.obs.flatten(), self.total_reward, done, info_dir
