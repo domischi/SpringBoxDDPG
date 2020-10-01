@@ -247,7 +247,8 @@ class SpringBoxEnv(gym.Env):
         done = False
         self.sim_info = get_sim_info(self.sim_info, self._config, self.current_step)
 
-        self.lights = (np.nan_to_num(action.reshape(self.grid_size, self.grid_size), nan=1., posinf=1., neginf=-1.) > self.THRESH).astype(int)
+        self.lights = (action.reshape(self.grid_size, self.grid_size) > self.THRESH).astype(int)
+        #self.lights = (np.nan_to_num(action.reshape(self.grid_size, self.grid_size), nan=1., posinf=1., neginf=-1.) > self.THRESH).astype(int)
 
         if (self.homogeneity_score is None) or (self.mixing_score is None) or (self.light_score is None) or (self.total_reward is None):
             self.compute_rewards()
