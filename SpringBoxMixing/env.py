@@ -134,6 +134,7 @@ class SpringBoxEnv(gym.Env):
         self.FLATTENED_ACTION_SPACE = env_config.get("FLATTENED_ACTION_SPACE", FLATTENED_SPACES)
         self.grid_size = env_config.get("grid_size",16)
         self.THRESH = env_config.get("THRESH",.5)
+        self.reward_scaling_factor = env_config.get("reward_scaling_factor",1)
         super(SpringBoxEnv, self).__init__()
 
         self.do_video = env_config['do_video']
@@ -296,6 +297,8 @@ class SpringBoxEnv(gym.Env):
                     "homogeneity_score"      : self.homogeneity_score,
                     "homogeneity_reward"     : self.homogeneity_reward,
                     "homogeneity_multiplier" : self.homogeneity_multiplier,
+                    "reward_multiplier"      : self.reward_scaling_factor,
+                    "total_reward_unscaled"  : self.total_reward/self.reward_scaling_factor,
                     }
 
         if self.FLATTENED_OBSERVATION_SPACE:
@@ -313,7 +316,7 @@ class SpringBoxEnv(gym.Env):
         self.homogeneity_reward = self.homogeneity_multiplier * self.homogeneity_score
         self.mixing_reward      = self.mixing_multiplier * self.mixing_score
         self.light_reward       = self.light_multiplier * self.light_score
-        self.total_reward = (self.mixing_reward + self.light_reward + self.homogeneity_reward) / self.total_multipliers
+        self.total_reward = self.reward_scaling_factor*(self.mixing_reward + self.light_reward + self.homogeneity_reward) / self.total_multipliers
 
 
     def clean_up(self):
