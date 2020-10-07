@@ -79,7 +79,7 @@ def default_cfg():
         assert config['n_part'] % 2 == 0
     return config
 
-def cfg(do_video=False):
+def cfg(env_config):
     config_file = 'environment_config.json'
     if os.path.isfile(config_file):
         with open(config_file, 'r') as f:
@@ -87,10 +87,13 @@ def cfg(do_video=False):
     else:
         print("Did not find configuration file, generate a default one!")
         conf_dict = default_cfg()
-
+        for k in env_config:
+            if 'sim_config_' in k:
+                k_sim = k.replace('sim_config_', '')
+                conf_dict[k_sim]=env_config[k]
         with open(config_file, 'w') as f:
             json.dump(conf_dict, f, indent=4)
-    if do_video:
+    if env_config.get('do_video', False):
         conf_dict['savefreq_fig'] = 1
         conf_dict['MAKE_VIDEO'] = True
     return conf_dict
@@ -140,7 +143,7 @@ class SpringBoxEnv(gym.Env):
         super(SpringBoxEnv, self).__init__()
 
         self.do_video = env_config['do_video']
-        self._config = cfg(self.do_video)
+        self._config = cfg(env_config)
 
         run_id = self._config["run_id"]
         unique_id = str(uuid.uuid4())
@@ -355,7 +358,6 @@ class SpringBoxEnv(gym.Env):
         self.acc = np.zeros(len(self.pXs))
         self.ms = self._config["m_init"] * np.ones(len(self.pXs))
         self.obs = np.zeros_like(self.observation_space.sample())
-        self._config = cfg()
         self.homogeneity_score = None
         self.mixing_score = None
         self.light_score = None
