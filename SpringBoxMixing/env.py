@@ -135,6 +135,8 @@ class SpringBoxEnv(gym.Env):
         self.grid_size = env_config.get("grid_size",16)
         self.THRESH = env_config.get("THRESH",.5)
         self.reward_scaling_factor = env_config.get("reward_scaling_factor",1)
+        self.mixing_score_type = env_config.get("mixing_score_type") ## hist_quad, hist_lin, delaunay
+        assert(self.mixing_score_type in ["hist_quad", "hist_lin", "delaunay"])
         super(SpringBoxEnv, self).__init__()
 
         self.do_video = env_config['do_video']
@@ -189,9 +191,13 @@ class SpringBoxEnv(gym.Env):
         self.light_multiplier = env_config.get("light_multiplier")
         self.total_multipliers = self.homogeneity_multiplier + self.mixing_multiplier + self.light_multiplier 
 
-        # Set stuff required for homogeneity determination
+        # Set stuff required for proper normalization of rewards
         self.avg_cell_cnt = self._config["n_part"]/(self.grid_size**2)
         self.max_inhomogeneity_score = (1-1/(self.grid_size**2))*self._config["n_part"]**2
+        if self.mixing_score_type == "hist_quad":
+            self.max_unmixing_score = (self._config["n_part"]/self.grid_size)**2
+        if self.mixing_score_type == "hist_lin":
+            self.max_unmixing_score = self._config["n_part"]
 
         # Set the variables for scores and so on
         self.homogeneity_score = None
@@ -307,14 +313,21 @@ class SpringBoxEnv(gym.Env):
             return self.obs, self.total_reward, done, info_dir
     
     def compute_rewards(self):
+        if self.mixing_score_type == "hist_quad":
+            self.mixing_score      = 1-np.sum((self.obs[:,:, 0]-self.obs[:,:,1])**2)/self.max_unmixing_score
+        elif self.mixing_score_type == "hist_lin":
+            self.mixing_score      = 1-np.sum(abs(self.obs[:,:, 0]-self.obs[:,:,1]))/self.max_unmixing_score
+        elif self.mixing_score_type == "delaunay":
+            self.mixing_score      = get_mixing_score(self.pXs, self._config)
+        else:
+            raise RuntimeError(f"Unrecognized mixing_score_type: {self.mixing_score_type}")
         self.homogeneity_score = 1-np.sum((np.sum(self.obs, axis = -1)-self.avg_cell_cnt)**2)/self.max_inhomogeneity_score
-        self.mixing_score      = get_mixing_score(self.pXs, self._config)
         self.light_score       = 1-self.lights.sum()/self.lights.size
-        self.homogeneity_score /= self.N_steps
         self.mixing_score      /= self.N_steps
+        self.homogeneity_score /= self.N_steps
         self.light_score       /= self.N_steps
-        self.homogeneity_reward = self.homogeneity_multiplier * self.homogeneity_score
         self.mixing_reward      = self.mixing_multiplier * self.mixing_score
+        self.homogeneity_reward = self.homogeneity_multiplier * self.homogeneity_score
         self.light_reward       = self.light_multiplier * self.light_score
         self.total_reward = self.reward_scaling_factor*(self.mixing_reward + self.light_reward + self.homogeneity_reward) / self.total_multipliers
 
