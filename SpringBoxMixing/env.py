@@ -202,6 +202,10 @@ class SpringBoxEnv(gym.Env):
         if self.mixing_score_type == "hist_lin":
             self.max_unmixing_score = self._config["n_part"]
 
+        self.hist_mixing_score_cap = None
+        if not env_config.get("hist_mixing_score_cap_factor", None) is None:
+            self.hist_mixing_score_cap = int(np.ceil(self._config["n_part"]/self.grid_size**2 * env_config["hist_mixing_score_cap_factor"]))
+
         # Set the variables for scores and so on
         self.homogeneity_score = None
         self.mixing_score = None
@@ -316,10 +320,13 @@ class SpringBoxEnv(gym.Env):
             return self.obs, self.total_reward, done, info_dir
     
     def compute_rewards(self):
-        if self.mixing_score_type == "hist_quad":
-            self.mixing_score      = 1-np.sum((self.obs[:,:, 0]-self.obs[:,:,1])**2)/self.max_unmixing_score
-        elif self.mixing_score_type == "hist_lin":
-            self.mixing_score      = 1-np.sum(abs(self.obs[:,:, 0]-self.obs[:,:,1]))/self.max_unmixing_score
+        if self.mixing_score_type == "hist_quad" or self.mixing_score_type == "hist_lin":
+            abs_diff_obs = abs(self.obs[:,:, 0]-self.obs[:,:,1])
+            if not self.hist_mixing_score_cap is None:
+                abs_diff_obs = np.clip(abs_diff_obs, a_min=0, a_max = self.hist_mixing_score_cap)
+            if self.mixing_score_type == "hist_quad":
+                abs_diff_obs = abs_diff_obs**2
+            self.mixing_score = 1-np.sum(abs_diff_obs)/self.max_unmixing_score
         elif self.mixing_score_type == "delaunay":
             self.mixing_score      = get_mixing_score(self.pXs, self._config)
         else:
