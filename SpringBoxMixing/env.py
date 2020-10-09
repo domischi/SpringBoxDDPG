@@ -202,9 +202,7 @@ class SpringBoxEnv(gym.Env):
         if self.mixing_score_type == "hist_lin":
             self.max_unmixing_score = self._config["n_part"]
 
-        self.hist_mixing_score_cap = None
-        if not env_config.get("hist_mixing_score_cap_factor", None) is None:
-            self.hist_mixing_score_cap = int(np.ceil(self._config["n_part"]/self.grid_size**2 * env_config["hist_mixing_score_cap_factor"]))
+        self.set_hist_mixing_score_cap(env_config.get("hist_mixing_score_cap_factor", None))
 
         # Set the variables for scores and so on
         self.homogeneity_score = None
@@ -214,6 +212,14 @@ class SpringBoxEnv(gym.Env):
         self.mixing_reward = None
         self.light_reward = None
         self.total_reward = None
+
+    def set_hist_mixing_score_cap(self, hsmcf=None):
+        if hsmcf is None:
+            self.hist_mixing_score_factor = self.grid_size**2
+            self.hist_mixing_score_cap = None
+        else:
+            self.hist_mixing_score_factor = hsmcf
+            self.hist_mixing_score_cap = int(np.ceil(self._config["n_part"]/self.grid_size**2 * hsmcf))
 
     def calculate_obs(self):
         _, _, H1, H2 = get_mixing_hists(
@@ -312,6 +318,8 @@ class SpringBoxEnv(gym.Env):
                     "homogeneity_multiplier" : self.homogeneity_multiplier,
                     "reward_multiplier"      : self.reward_scaling_factor,
                     "fraction_lights_activated": self.lights.sum()/self.lights.size,
+                    "hist_mixing_score_factor": self.hist_mixing_score_factor,
+                    "hist_mixing_score_cap"   : self.hist_mixing_score_cap ,
                     "total_reward_unscaled"  : self.total_reward/self.reward_scaling_factor,
                     }
 
