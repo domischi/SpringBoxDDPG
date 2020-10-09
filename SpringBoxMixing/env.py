@@ -311,6 +311,7 @@ class SpringBoxEnv(gym.Env):
                     "homogeneity_reward"     : self.homogeneity_reward,
                     "homogeneity_multiplier" : self.homogeneity_multiplier,
                     "reward_multiplier"      : self.reward_scaling_factor,
+                    "fraction_lights_activated": self.lights.sum()/self.lights.size,
                     "total_reward_unscaled"  : self.total_reward/self.reward_scaling_factor,
                     }
 
