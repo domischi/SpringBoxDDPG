@@ -259,7 +259,7 @@ class SpringBoxEnv(gym.Env):
         self.total_multipliers =  self.homogeneity_multiplier + self.mixing_multiplier + self.light_multiplier 
 
     def collect_video(self):
-        fname = generate_video_from_png(self.sim_info["data_dir"])
+        fname = generate_video_from_png(self.sim_info["data_dir"], destroyAllWindows=False)
         if fname is None:
             raise RuntimeError("Wanted to collect video, but apparently this failed. Check the folder self.sim_info['data_dir']")
         return fname
