@@ -17,7 +17,7 @@ warnings.simplefilter("ignore", category=NumbaWarning)
 
 import SpringBox
 from SpringBox.integrator import integrate_one_timestep
-from SpringBox.illustration import get_mixing_hists, plot_mixing_on_axis, plot_light_pattern, generate_video_from_png
+from SpringBox.illustration import get_mixing_hists, plot_mixing_on_axis, plot_light_pattern, generate_video_from_png, generate_gif_from_png
 from SpringBox.activation import *
 from SpringBox.post_run_hooks import post_run_hooks
 from SpringBox.measurements import (
@@ -143,6 +143,7 @@ class SpringBoxEnv(gym.Env):
         super(SpringBoxEnv, self).__init__()
 
         self.do_video = env_config['do_video']
+        self.do_avi = env_config.get('do_avi', False)
         self._config = cfg(env_config)
 
         run_id = self._config["run_id"]
@@ -259,7 +260,10 @@ class SpringBoxEnv(gym.Env):
         self.total_multipliers =  self.homogeneity_multiplier + self.mixing_multiplier + self.light_multiplier 
 
     def collect_video(self):
-        fname = generate_video_from_png(self.sim_info["data_dir"], destroyAllWindows=False)
+        if self.do_avi:
+            fname = generate_video_from_png(self.sim_info["data_dir"], destroyAllWindows=False)
+        else: 
+            fname = generate_gif_from_png(self.sim_info["data_dir"])
         if fname is None:
             raise RuntimeError("Wanted to collect video, but apparently this failed. Check the folder self.sim_info['data_dir']")
         return fname
@@ -355,7 +359,10 @@ class SpringBoxEnv(gym.Env):
         if self.do_video:
             self.plot_frame()
             old_location = self.collect_video()
-            new_location = f'video_{int(time.time())}.avi'
+            if self.do_avi:
+                new_location = f'video_{int(time.time())}.avi'
+            else:
+                new_location = f'video_{int(time.time())}.gif'
             shutil.move(old_location, new_location)
             print(f'Collected example video: {new_location}')
         shutil.rmtree(self.sim_info['data_dir'])
