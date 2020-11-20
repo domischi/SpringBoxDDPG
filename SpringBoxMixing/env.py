@@ -153,7 +153,8 @@ class SpringBoxEnv(gym.Env):
         self.sim_info = {"data_dir": data_dir}
         self.sim_info = get_sim_info(self.sim_info, self._config, 0)
 
-        self.CAP = env_config.get("CAP",int(self._config["n_part"]/(self.grid_size**2)*4))
+        #self.CAP = env_config.get("CAP",int(self._config["n_part"]/(self.grid_size**2)*4))
+        self.CAP = env_config.get("CAP",None)
 
         ## Initialize particlesself.pXs> -0.2
         self.pXs = (
@@ -176,10 +177,9 @@ class SpringBoxEnv(gym.Env):
         self.N_steps = int(self._config["T"] / self._config["dt"])
         self.current_step = 0
 
-        if self.FLATTENED_OBSERVATION_SPACE:
-            self.observation_space = spaces.Box( low=0, high=self.CAP, shape=(self.grid_size*self.grid_size*2,))
-        else:
-            self.observation_space = spaces.Box( low=0, high=self.CAP, shape=(self.grid_size, self.grid_size, 2))
+        high_val = self.CAP if (not CAP is None) else self._config["n_part"]//2
+        observation_space_shape = (self.grid_size*self.grid_size*2,) if self.FLATTENED_OBSERVATION_SPACE else (self.grid_size, self.grid_size, 2)
+        self.observation_space = spaces.Box( low=0, high=high_val, shape=observation_space_shape)
         if self.FLATTENED_ACTION_SPACE:
             self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size*self.grid_size,))
         else:
@@ -239,7 +239,7 @@ class SpringBoxEnv(gym.Env):
         fname=f"{self.sim_info['data_dir']}/frame_{self.current_step:03}.png"
         title=f"Step: {self.current_step:03}, Score: {self.total_reward:.4f}"
         fig = plt.figure(figsize=(5,5))
-        plot_mixing_on_axis(plt.gca(), self.pXs, self.sim_info, title, fix_frame=True, SAVEFIG=False, ex=None, nbins=self.grid_size, cap=self.CAP, alpha=.85)
+        plot_mixing_on_axis(plt.gca(), self.pXs, self.sim_info, title, fix_frame=True, SAVEFIG=False, ex=None, nbins=self.grid_size, cap=self.CAP if (not self.CAP is None) else self.avg_cell_cnt*4, alpha=.85)
         plot_light_pattern(plt.gca(), self.lights, self.sim_info, alpha=.3)
         plt.gca().get_xaxis().set_visible(False)
         plt.gca().get_yaxis().set_visible(False)
