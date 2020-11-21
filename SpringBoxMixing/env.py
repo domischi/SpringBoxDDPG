@@ -177,7 +177,7 @@ class SpringBoxEnv(gym.Env):
         self.N_steps = int(self._config["T"] / self._config["dt"])
         self.current_step = 0
 
-        high_val = self.CAP if (not CAP is None) else self._config["n_part"]//2
+        high_val = self.CAP if (not self.CAP is None) else self._config["n_part"]//2
         observation_space_shape = (self.grid_size*self.grid_size*2,) if self.FLATTENED_OBSERVATION_SPACE else (self.grid_size, self.grid_size, 2)
         self.observation_space = spaces.Box( low=0, high=high_val, shape=observation_space_shape)
         if self.FLATTENED_ACTION_SPACE:
