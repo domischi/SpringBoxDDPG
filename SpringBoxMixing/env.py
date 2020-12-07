@@ -59,6 +59,7 @@ def default_cfg():
         # Spring properties
         spring_cutoff = 1.5,
         spring_k = 3.0,
+        spring_k_rep = 3.0,
         spring_r0 = 0.2,
         # LJ properties
         LJ_eps = 0.0,
@@ -80,7 +81,10 @@ def default_cfg():
     return config
 
 def cfg(env_config):
-    config_file = 'environment_config.json'
+    env_configs_dir = 'environment_configs' 
+    uid = env_config['uid'] ## TODO replace with a get
+    os.makedirs(env_configs_dir, exist_ok=True)
+    config_file = f'{env_configs_dir}/{str(uid)}.json'
     if os.path.isfile(config_file):
         with open(config_file, 'r') as f:
             conf_dict = json.load(f)
@@ -91,11 +95,21 @@ def cfg(env_config):
             if 'sim_config_' in k:
                 k_sim = k.replace('sim_config_', '')
                 conf_dict[k_sim]=env_config[k]
+        ## make sure all interactions are loaded, but not more than necessary
+        if env_config['do_attractive']:
+            assert(conf_dict['spring_k']>0)
+        else:
+            conf_dict['spring_k']=0
+        if env_config['do_repulsive']:
+            assert(conf_dict['spring_k_rep']>0)
+        else:
+            conf_dict['spring_k_rep']=0
         with open(config_file, 'w') as f:
             json.dump(conf_dict, f, indent=4)
     if env_config.get('do_video', False):
         conf_dict['savefreq_fig'] = 1
         conf_dict['MAKE_VIDEO'] = True
+
     return conf_dict
 
 
@@ -136,9 +150,12 @@ class SpringBoxEnv(gym.Env):
         self.FLATTENED_OBSERVATION_SPACE = env_config.get("FLATTENED_OBSERVATION_SPACE", FLATTENED_SPACES)
         self.FLATTENED_ACTION_SPACE = env_config.get("FLATTENED_ACTION_SPACE", FLATTENED_SPACES)
         self.grid_size = env_config.get("grid_size",16)
-        self.THRESH = env_config.get("THRESH",.5)
         self.reward_scaling_factor = env_config.get("reward_scaling_factor",1)
         self.mixing_score_type = env_config.get("mixing_score_type") ## hist_quad, hist_lin, delaunay
+
+        self.do_attractive = env_config.get("do_attractive", True)
+        self.do_repulsive = env_config.get("do_repulsive", False)
+
         assert(self.mixing_score_type in ["hist_quad", "hist_lin", "delaunay"])
         super(SpringBoxEnv, self).__init__()
 
@@ -156,7 +173,7 @@ class SpringBoxEnv(gym.Env):
         #self.CAP = env_config.get("CAP",int(self._config["n_part"]/(self.grid_size**2)*4))
         self.CAP = env_config.get("CAP",None)
 
-        ## Initialize particlesself.pXs> -0.2
+        ## Initialize particles
         self.pXs = (
             (np.random.rand(self._config["n_part"], 2) - 0.5) * 2 * self._config["L"]
         )
@@ -178,15 +195,16 @@ class SpringBoxEnv(gym.Env):
         self.current_step = 0
 
         high_val = self.CAP if (not self.CAP is None) else self._config["n_part"]//2
+        self.min_action_value = -1 if self.do_repulsive  else 0
+        self.max_action_value =  1 if self.do_attractive else 0
         observation_space_shape = (self.grid_size*self.grid_size*2,) if self.FLATTENED_OBSERVATION_SPACE else (self.grid_size, self.grid_size, 2)
         self.observation_space = spaces.Box( low=0, high=high_val, shape=observation_space_shape)
         if self.FLATTENED_ACTION_SPACE:
-            self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size*self.grid_size,))
+            self.action_space = spaces.Box(low=self.min_action_value, high=self.max_action_value, shape=(self.grid_size*self.grid_size,))
         else:
-            self.action_space = spaces.Box( low=0, high=1, shape=(self.grid_size, self.grid_size,))
+            self.action_space = spaces.Box(low=self.min_action_value, high=self.max_action_value, shape=(self.grid_size, self.grid_size,))
         self.obs = np.zeros_like((self.grid_size, self.grid_size, 2))
         self.lights = np.zeros_like(self.action_space.sample())
-
 
         ## Setup rewards
         # Set mix of rewards
@@ -239,8 +257,8 @@ class SpringBoxEnv(gym.Env):
         fname=f"{self.sim_info['data_dir']}/frame_{self.current_step:03}.png"
         title=f"Step: {self.current_step:03}, Score: {self.total_reward:.4f}"
         fig = plt.figure(figsize=(5,5))
-        plot_mixing_on_axis(plt.gca(), self.pXs, self.sim_info, title, fix_frame=True, SAVEFIG=False, ex=None, nbins=self.grid_size, cap=self.CAP if (not self.CAP is None) else self.avg_cell_cnt*4, alpha=.85)
-        plot_light_pattern(plt.gca(), self.lights, self.sim_info, alpha=.3)
+        plot_mixing_on_axis(plt.gca(), self.pXs, self.sim_info, title, fix_frame=True, SAVEFIG=False, ex=None, plot_density_map=False, nbins=self.grid_size, cap=self.CAP if (not self.CAP is None) else self.avg_cell_cnt*4, alpha=.85)
+        plot_light_pattern(plt.gca(), self.lights, self.sim_info, alpha=.3) ## TODO also commit in SpringBox
         plt.gca().get_xaxis().set_visible(False)
         plt.gca().get_yaxis().set_visible(False)
         plt.tight_layout()
@@ -272,9 +290,9 @@ class SpringBoxEnv(gym.Env):
         done = False
         self.sim_info = get_sim_info(self.sim_info, self._config, self.current_step)
 
-        self.lights = (action.reshape(self.grid_size, self.grid_size) > self.THRESH).astype(int)
-        #self.lights = (np.nan_to_num(action.reshape(self.grid_size, self.grid_size), nan=1., posinf=1., neginf=-1.) > self.THRESH).astype(int)
-        #self.lights = (np.nan_to_num(action.reshape(self.grid_size, self.grid_size), nan=np.random.rand()) > self.THRESH).astype(int)
+        self.lights = np.round(np.clip(action.reshape(self.grid_size, self.grid_size),
+                               a_min = self.min_action_value,
+                               a_max = self.max_action_value)).astype(int)
 
         if (self.homogeneity_score is None) or (self.mixing_score is None) or (self.light_score is None) or (self.total_reward is None):
             self.compute_rewards()
@@ -321,7 +339,9 @@ class SpringBoxEnv(gym.Env):
                     "homogeneity_reward"     : self.homogeneity_reward,
                     "homogeneity_multiplier" : self.homogeneity_multiplier,
                     "reward_multiplier"      : self.reward_scaling_factor,
-                    "fraction_lights_activated": self.lights.sum()/self.lights.size,
+                    "fraction_attractive_lights_activated": (self.lights>0).sum()/self.lights.size,
+                    "fraction_repulsive_lights_activated": (self.lights<0).sum()/self.lights.size,
+                    "avg_light": self.lights.sum()/self.lights.size,
                     "hist_mixing_score_factor": self.hist_mixing_score_factor,
                     "hist_mixing_score_cap"   : self.hist_mixing_score_cap ,
                     "total_reward_unscaled"  : self.total_reward/self.reward_scaling_factor,
@@ -345,7 +365,7 @@ class SpringBoxEnv(gym.Env):
         else:
             raise RuntimeError(f"Unrecognized mixing_score_type: {self.mixing_score_type}")
         self.homogeneity_score = 1-np.sum((np.sum(self.obs, axis = -1)-self.avg_cell_cnt)**2)/self.max_inhomogeneity_score
-        self.light_score       = 1-self.lights.sum()/self.lights.size
+        self.light_score       = 1-abs(self.lights).sum()/self.lights.size
         self.mixing_score      /= self.N_steps
         self.homogeneity_score /= self.N_steps
         self.light_score       /= self.N_steps
