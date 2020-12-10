@@ -173,6 +173,8 @@ class SpringBoxEnv(gym.Env):
         #self.CAP = env_config.get("CAP",int(self._config["n_part"]/(self.grid_size**2)*4))
         self.CAP = env_config.get("CAP",None)
 
+        self.shift_rewards_0_to_1 = env_config.get("shift_rewards_0_to_1",False)
+
         ## Initialize particles
         self.pXs = (
             (np.random.rand(self._config["n_part"], 2) - 0.5) * 2 * self._config["L"]
@@ -359,13 +361,18 @@ class SpringBoxEnv(gym.Env):
                 abs_diff_obs = np.clip(abs_diff_obs, a_min=0, a_max = self.hist_mixing_score_cap)
             if self.mixing_score_type == "hist_quad":
                 abs_diff_obs = abs_diff_obs**2
-            self.mixing_score = 1-np.sum(abs_diff_obs)/self.max_unmixing_score
+            self.mixing_score = -np.sum(abs_diff_obs)/self.max_unmixing_score
+            if self.shift_rewards_0_to_1:
+                self.mixing_score+=1
         elif self.mixing_score_type == "delaunay":
             self.mixing_score      = get_mixing_score(self.pXs, self._config)
         else:
             raise RuntimeError(f"Unrecognized mixing_score_type: {self.mixing_score_type}")
-        self.homogeneity_score = 1-np.sum((np.sum(self.obs, axis = -1)-self.avg_cell_cnt)**2)/self.max_inhomogeneity_score
-        self.light_score       = 1-abs(self.lights).sum()/self.lights.size
+        self.homogeneity_score = -np.sum((np.sum(self.obs, axis = -1)-self.avg_cell_cnt)**2)/self.max_inhomogeneity_score
+        self.light_score       = -abs(self.lights).sum()/self.lights.size
+        if self.shift_rewards_0_to_1:
+            self.homogeneity_score+=1
+            self.light_score      +=1
         self.mixing_score      /= self.N_steps
         self.homogeneity_score /= self.N_steps
         self.light_score       /= self.N_steps
