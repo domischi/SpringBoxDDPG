@@ -296,6 +296,19 @@ class SpringBoxEnv(gym.Env):
                                a_min = self.min_action_value,
                                a_max = self.max_action_value)).astype(int)
 
+        if min(lights)<-1:
+            print('-'*80)
+            print(f'step min(lights): {np.min(self.lights)}')
+            print(f'step max(lights): {np.max(self.lights)}')
+            print(f'step isnan(lights): {np.isnan(self.lights).any()}')
+            print(f'step min(action): {np.min(action)}')
+            print(f'step max(action): {np.max(action)}')
+            print(f'step isnan(action): {np.isnan(action).any()}')
+            print(f'step a_min: {self.min_action_value}')
+            print(f'step a_max: {self.max_action_value}')
+            print(f'step grid_size: {self.grid_size}')
+            print('-'*80)
+
         if (self.homogeneity_score is None) or (self.mixing_score is None) or (self.light_score is None) or (self.total_reward is None):
             self.compute_rewards()
 
