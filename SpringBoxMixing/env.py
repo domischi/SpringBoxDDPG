@@ -292,22 +292,13 @@ class SpringBoxEnv(gym.Env):
         done = False
         self.sim_info = get_sim_info(self.sim_info, self._config, self.current_step)
 
+        if np.isnan(action).any():
+            action = np.random.rand(self.grid_size, self.grid_size) # doing purely random should be sufficiently bad that it is not optimized for
+            print('Warning: Caught an nan output in env.step...')
         self.lights = np.round(np.clip(action.reshape(self.grid_size, self.grid_size),
-                               a_min = self.min_action_value,
-                               a_max = self.max_action_value)).astype(int)
-
-        if np.min(self.lights)<-1:
-            print('-'*80)
-            print(f'step min(lights): {np.min(self.lights)}')
-            print(f'step max(lights): {np.max(self.lights)}')
-            print(f'step isnan(lights): {np.isnan(self.lights).any()}')
-            print(f'step min(action): {np.min(action)}')
-            print(f'step max(action): {np.max(action)}')
-            print(f'step isnan(action): {np.isnan(action).any()}')
-            print(f'step a_min: {self.min_action_value}')
-            print(f'step a_max: {self.max_action_value}')
-            print(f'step grid_size: {self.grid_size}')
-            print('-'*80)
+                           a_min = self.min_action_value,
+                           a_max = self.max_action_value)).astype(int)
+        assert(np.min(self.lights)>=-1 and np.max(self.lights)<=1 )
 
         if (self.homogeneity_score is None) or (self.mixing_score is None) or (self.light_score is None) or (self.total_reward is None):
             self.compute_rewards()
