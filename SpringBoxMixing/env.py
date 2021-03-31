@@ -296,7 +296,7 @@ class SpringBoxEnv(gym.Env):
                                a_min = self.min_action_value,
                                a_max = self.max_action_value)).astype(int)
 
-        if min(self.lights)<-1:
+        if np.min(self.lights)<-1:
             print('-'*80)
             print(f'step min(lights): {np.min(self.lights)}')
             print(f'step max(lights): {np.max(self.lights)}')
