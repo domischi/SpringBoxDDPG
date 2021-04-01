@@ -295,6 +295,7 @@ class SpringBoxEnv(gym.Env):
         if np.isnan(action).any():
             action = np.random.rand(self.grid_size, self.grid_size) # doing purely random should be sufficiently bad that it is not optimized for
             print('Warning: Caught an nan output in env.step...')
+            print(f'Debug Info: {np.min(self.obs)} {np.max(self.obs)} {np.isnan(self.obs).any()}')
         self.lights = np.round(np.clip(action.reshape(self.grid_size, self.grid_size),
                            a_min = self.min_action_value,
                            a_max = self.max_action_value)).astype(int)
