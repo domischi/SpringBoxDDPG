@@ -60,7 +60,7 @@ def default_cfg():
         spring_cutoff = 1.5,
         spring_k = 3.0,
         spring_k_rep = 3.0,
-        spring_r0 = 0.2,
+        spring_r0 = 0,
         # LJ properties
         LJ_eps = 0.0,
         #LJ_r0 = 0.05
@@ -74,7 +74,7 @@ def default_cfg():
         drag_factor = 1,
     )
 
-    config['spring_lower_cutoff'] = config['spring_cutoff'] / 25,
+    config['spring_lower_cutoff'] = config['spring_cutoff'] / 100,
     config['n_part'] = int(config['particle_density'] * ((2 * config['L']) ** 2))
     if config['mixing_experiment']:
         assert config['n_part'] % 2 == 0
