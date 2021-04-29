@@ -24,6 +24,7 @@ from SpringBox.measurements import (
     do_measurements,
     do_one_timestep_correlation_measurement,
     get_mixing_score,
+    store_dict_to_h5_by_filename
 )
 
 import matplotlib.pyplot as plt
@@ -109,6 +110,10 @@ def cfg(env_config):
     if env_config.get('do_video', False):
         conf_dict['savefreq_fig'] = 1
         conf_dict['MAKE_VIDEO'] = True
+    if env_config.get('do_data_dump', False):
+        conf_dict['compute_update_matrix'] = True
+        conf_dict['savefreq_data_dump'] = 1
+        conf_dict['hdf_file'] = 'dd_tmp.h5'
 
     return conf_dict
 
@@ -137,6 +142,7 @@ def get_sim_info(old_sim_info, _config, i):
         "measure_one_timestep_correlator" in _config.keys()
         and _config["measure_one_timestep_correlator"]
     )
+    sim_info['compute_update_matrix'] = _config.get('do_')
     return sim_info
 
 
@@ -159,6 +165,9 @@ class SpringBoxEnv(gym.Env):
         assert(self.mixing_score_type in ["hist_quad", "hist_lin", "delaunay"])
         super(SpringBoxEnv, self).__init__()
 
+        self.do_data_dump = env_config.get('do_data_dump', False)
+        if self.do_data_dump:
+            self.update_matrix = None
         self.do_video = env_config['do_video']
         self.do_avi = env_config.get('do_avi', False)
         self._config = cfg(env_config)
@@ -268,10 +277,42 @@ class SpringBoxEnv(gym.Env):
         plt.savefig(fname)
         plt.close(fig)
 
+    def get_data_dump_location(self):
+        return f"{self.sim_info['data_dir']}/dd.h5"
+
+    def store_data_dump(self):
+        fname = self.get_data_dump_location()
+        iteration_group_name = f"iteration_{self.current_step:03}"
+        d = {
+                'pXs': self.pXs,
+                'pVs': self.pVs,
+                'acc': self.acc,
+                'm'  : self.ms,
+                'current_step' : self.current_step,
+                'obs': self.obs,
+                'activation': self.lights,
+                'homogeneity_score'  :self.homogeneity_score   ,
+                'mixing_score'       :self.mixing_score        ,
+                'light_score'        :self.light_score         ,
+                'homogeneity_reward' :self.homogeneity_reward  ,
+                'mixing_reward'      :self.mixing_reward       ,
+                'light_reward'       :self.light_reward        ,
+                'total_reward'       :self.total_reward        ,
+                }
+        store_dict_to_h5_by_filename(d, fname, iteration_group_name)
+        return fname
+
+
     def activate_do_video(self):
         self.do_video=True
     def deactivate_do_video(self):
-        self.do_video=True
+        self.do_video=False
+    def activate_data_dump(self):
+        self.do_data_dump=True
+        self.update_matrix = None
+    def deactivate_data_dump(self):
+        self.do_data_dump=False
+        del self.update_matrix
 
     def set_multipliers(self, d):
         self.homogeneity_multiplier = d.get("homogeneity_multiplier", self.homogeneity_multiplier)
@@ -312,7 +353,7 @@ class SpringBoxEnv(gym.Env):
             self._config, self.sim_info["t"], lx=self.X, ly=self.Y, lh=np.transpose(self.lights)
         )
 
-        self.pXs, self.pVs, self.acc, self.ms, self.fXs, self.fVs, = integrate_one_timestep(
+        self.pXs, self.pVs, self.acc, self.ms, self.fXs, self.fVs, self.update_matrix = integrate_one_timestep(
                 pXs=self.pXs,
                 pVs=self.pVs,
                 acc=self.acc,
@@ -324,6 +365,8 @@ class SpringBoxEnv(gym.Env):
                 use_interpolated_fluid_velocities=self._config[
                     "use_interpolated_fluid_velocities"
                 ],
+                inverted_update=True,
+                
             )
 
         self.current_step += 1
@@ -333,6 +376,8 @@ class SpringBoxEnv(gym.Env):
         self.calculate_obs() ## Has to be executed before compute_rewards to be able to determine homogeneity
         self.compute_rewards()
 
+        if self.do_data_dump:
+            self.store_data_dump()
         if done:
             self.clean_up()
 
@@ -397,6 +442,12 @@ class SpringBoxEnv(gym.Env):
                 new_location = f'video_{int(time.time())}.gif'
             shutil.move(old_location, new_location)
             print(f'Collected example video: {new_location}')
+        if self.do_data_dump:
+            old_location = self.get_data_dump_location()
+            assert(not old_location is None)
+            new_location = f'dd_tmp_{int(time.time())}.h5'
+            shutil.move(old_location, new_location)
+            print(f'Collected data_dump: {new_location}')
         shutil.rmtree(self.sim_info['data_dir'])
 
     def reset(self):
