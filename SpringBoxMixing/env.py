@@ -30,6 +30,8 @@ from SpringBox.measurements import (
 import matplotlib.pyplot as plt
 import time
 
+from pprint import pprint
+
 def default_cfg():
     config=dict(
         ## Simulation parameters
@@ -142,7 +144,7 @@ def get_sim_info(old_sim_info, _config, i):
         "measure_one_timestep_correlator" in _config.keys()
         and _config["measure_one_timestep_correlator"]
     )
-    sim_info['compute_update_matrix'] = _config.get('do_')
+    sim_info['compute_update_matrix'] = _config.get('compute_update_matrix', False)
     return sim_info
 
 
@@ -298,6 +300,7 @@ class SpringBoxEnv(gym.Env):
                 'mixing_reward'      :self.mixing_reward       ,
                 'light_reward'       :self.light_reward        ,
                 'total_reward'       :self.total_reward        ,
+                'update_matrix'      :self.update_matrix       ,
                 }
         store_dict_to_h5_by_filename(d, fname, iteration_group_name)
         return fname
