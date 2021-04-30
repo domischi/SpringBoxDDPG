@@ -30,8 +30,6 @@ from SpringBox.measurements import (
 import matplotlib.pyplot as plt
 import time
 
-from pprint import pprint
-
 def default_cfg():
     config=dict(
         ## Simulation parameters
@@ -335,6 +333,7 @@ class SpringBoxEnv(gym.Env):
     def step(self, action):
         done = False
         self.sim_info = get_sim_info(self.sim_info, self._config, self.current_step)
+        self.sim_info['compute_update_matrix']=self.sim_info['compute_update_matrix'] or self.do_data_dump
 
         if np.isnan(action).any():
             action = np.random.rand(self.grid_size, self.grid_size) # doing purely random should be sufficiently bad that it is not optimized for
@@ -369,7 +368,6 @@ class SpringBoxEnv(gym.Env):
                     "use_interpolated_fluid_velocities"
                 ],
                 inverted_update=True,
-                
             )
 
         self.current_step += 1
